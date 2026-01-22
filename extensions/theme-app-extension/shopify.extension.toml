@@ -1,0 +1,11 @@
+api_version = "2025-01"
+
+[[extensions]]
+uid = "2188e9f6-6ea6-761c-8ef8-5efe0bf86bbfc0e85ee2"
+type = "theme"
+name = "kiscience"
+handle = "kiscience-theme-extension"
+
+[extensions.capabilities]
+network_access = true
+api_access = true
