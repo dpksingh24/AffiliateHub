@@ -3,7 +3,7 @@
 client_id = "5b820bb4c1bf85a6f0e95662da57fb7a"
 name = "kiscience"
 handle = "kiscience-dashboard"
-application_url = "https://boating-fruit-flexible-sword.trycloudflare.com"
+application_url = "https://intl-objectives-publisher-burlington.trycloudflare.com"
 embedded = true
 
 [access_scopes]
@@ -29,8 +29,8 @@ uri = "/webhooks"
 
 [auth]
 redirect_urls = [
-  "https://boating-fruit-flexible-sword.trycloudflare.com/running",
-  "https://boating-fruit-flexible-sword.trycloudflare.com/auth/callback"
+  "https://intl-objectives-publisher-burlington.trycloudflare.com/running",
+  "https://intl-objectives-publisher-burlington.trycloudflare.com/auth/callback"
 ]
 
 [pos]
