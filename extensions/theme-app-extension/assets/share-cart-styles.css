@@ -1,0 +1,171 @@
+/* KiScience Share Cart Styles */
+
+#kiscience-share-cart-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* Share Cart button - matches Continue shopping (muted blue-grey) */
+.kiscience-share-cart-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  padding: 14px 24px;
+  font-size: 1rem;
+  color: #fff;
+  background: #6090ab;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  font-family: inherit;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.kiscience-share-cart-btn:hover {
+  background: #6e9ab3;
+}
+
+.kiscience-share-cart-btn:active {
+  transform: scale(0.98);
+}
+
+/* Toast notification (replaces alert) */
+.kiscience-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: #374151;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 99999;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+
+.kiscience-toast.kiscience-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.kiscience-toast.kiscience-toast--success {
+  background: #059669;
+}
+
+.kiscience-share-cart-header {
+  font-size: 18px;
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 15px;
+}
+
+.kiscience-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.kiscience-share-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.kiscience-share-btn:active {
+  transform: scale(0.98);
+}
+
+.kiscience-cart-items {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.kiscience-cart-items h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 10px 0;
+}
+
+.kiscience-cart-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #374151;
+}
+
+.kiscience-cart-item-name {
+  flex: 1;
+}
+
+.kiscience-cart-item-qty {
+  color: #6b7280;
+  font-weight: 500;
+  margin: 0 8px;
+}
+
+.kiscience-cart-item-price {
+  color: #000;
+  font-weight: 600;
+}
+
+.kiscience-share-url {
+  margin-top: 12px;
+  padding: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.kiscience-share-url label {
+  display: block;
+  color: #0369a1;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.kiscience-share-url input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+@media (max-width: 640px) {
+  .kiscience-share-cart {
+    padding: 16px;
+  }
+
+  .kiscience-share-cart-button-group {
+    gap: 8px;
+  }
+
+  .kiscience-share-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}

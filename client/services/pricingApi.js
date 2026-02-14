@@ -4,7 +4,7 @@
  */
 
 const API_BASE = '/api';
-const SHOP_STORAGE_KEY = 'affiliatehub_shop';
+const SHOP_STORAGE_KEY = 'kiscience_shop';
 
 // Helper to get shop from URL params or localStorage
 const getShopParam = () => {
@@ -51,10 +51,19 @@ const apiRequest = async (endpoint, options = {}) => {
     },
   });
 
-  const data = await response.json();
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status} ${response.statusText})`);
+    }
+    throw new Error('Invalid response from server');
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'API request failed');
+    throw new Error(data.error || data.message || `Request failed (${response.status})`);
   }
 
   return data;
@@ -160,6 +169,92 @@ export const syncPricingRulesToShopify = async () => {
   });
 };
 
+/**
+ * Get Shopify discount details by rule ID
+ */
+export const getShopifyDiscountByRuleId = async (ruleId) => {
+  return apiRequest(`/pricing-rules/${ruleId}/shopify-discount`);
+};
+
+/**
+ * Get products currently on the linked Shopify discount (for product selection modal).
+ */
+export const getDiscountProductsFromShopify = async (ruleId) => {
+  return apiRequest(`/pricing-rules/${ruleId}/discount-products`);
+};
+
+/**
+ * Update rule's product list and sync to Shopify discount (for product modal confirm).
+ */
+export const updateRuleProducts = async (ruleId, { specificProducts }) => {
+  return apiRequest(`/pricing-rules/${ruleId}/update-products`, {
+    method: 'POST',
+    body: JSON.stringify({ specificProducts: specificProducts || [] }),
+  });
+};
+
+/**
+ * Get customer segments from Shopify
+ */
+export const getCustomerSegments = async () => {
+  return apiRequest('/pricing-rules/customer-segments');
+};
+
+
+/**
+ * Assign a customer segment to a discount
+ */
+export const assignSegmentToDiscount = async (data) => {
+  return apiRequest('/discounts/assign-segment', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+/**
+ * Remove a customer segment from a discount (syncs to store discount)
+ */
+export const removeSegmentFromDiscount = async ({ discountId, segmentId }) => {
+  if (!discountId || !segmentId) {
+    throw new Error('discountId and segmentId are required');
+  }
+  return apiRequest('/discounts/remove-segment', {
+    method: 'POST',
+    body: JSON.stringify({ discountId, segmentId }),
+  });
+};
+
+export const getCustomerSegmentsByRuleId = async (ruleId) => {
+  if (!ruleId) {
+    throw new Error('Rule ID is required')
+  }
+
+  return apiRequest(
+    `/pricing-rules/customer-segments?ruleId=${ruleId}`,
+    { method: 'GET' }
+  )
+}
+
+/**
+ * Get currently assigned segment(s) for a pricing rule's discount (if any)
+ */
+export const getAssignedSegmentByRuleId = async (ruleId) => {
+  if (!ruleId) return { segmentAssigned: false, assignedSegments: [] }
+  try {
+    const res = await apiRequest(`/pricing-rules/${ruleId}/verify-segment`, {
+      method: 'POST',
+    })
+    return {
+      segmentAssigned: res?.segmentAssigned ?? false,
+      assignedSegments: res?.assignedSegments ?? [],
+    }
+  } catch {
+    return { segmentAssigned: false, assignedSegments: [] }
+  }
+}
+
+
+
 export default {
   // Pricing Rules
   getPricingRules,
@@ -177,4 +272,14 @@ export default {
   
   // Sync
   syncPricingRulesToShopify,
+
+  // Shopify Discount
+  getShopifyDiscountByRuleId,
+  getDiscountProductsFromShopify,
+  updateRuleProducts,
+  getCustomerSegments,
+  assignSegmentToDiscount,
+  removeSegmentFromDiscount,
+  getCustomerSegmentsByRuleId,
+  getAssignedSegmentByRuleId,
 };

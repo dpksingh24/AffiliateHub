@@ -1,9 +1,13 @@
 {
-  "affiliatehub": {
+  "kiscience": {
     "custom_pricing": {
       "title": "Custom Pricing",
       "special_price": "Special Price",
       "off": "off"
+    },
+    "share_cart": {
+      "title": "Share Cart",
+      "description": "Allow affiliates to share customer carts with referral links"
     }
   }
 }

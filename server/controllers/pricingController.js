@@ -7,6 +7,10 @@
 
 const { ObjectId } = require('mongodb');
 
+// Optional override: Function ID for the discount-function extension.
+// If not set, we'll look it up via the Admin API.
+const DISCOUNT_FUNCTION_ID = process.env.DISCOUNT_FUNCTION_ID || null;
+
 // ===== SHOPIFY HELPER FUNCTIONS =====
 
 // Helper function to get shop access token
@@ -16,6 +20,73 @@ const getShopAccessToken = async (shop, db) => {
     throw new Error('Shop not authenticated');
   }
   return shopData.accessToken;
+};
+
+// Helper: fetch this app's discount function ID from Shopify and log it
+const getDiscountFunctionId = async (shop, accessToken) => {
+  const query = `
+  query AppFunctions {
+    shopifyFunctions(first: 50) {
+      edges {
+        node {
+          id
+          apiType
+          title
+        }
+      }
+    }
+  }
+
+`;
+
+
+  const response = await fetch(`https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  const data = await response.json();
+
+  if (data.errors) {
+    console.error('Error fetching app functions:', data.errors);
+    return null;
+  }
+
+  const edges = data.data?.shopifyFunctions?.edges || [];
+
+  // Log all functions for debugging
+  console.log(
+    'Kiscience – shopifyFunctions:',
+    JSON.stringify(
+      edges.map((e) => e.node),
+      null,
+      2,
+    ),
+  );
+
+  // We already filtered by apiType in the query; just take the first result
+  const match = edges[0]?.node;
+
+  if (!match) {
+    console.log(
+      'Kiscience – No cart.lines.discounts.generate function found for this app.',
+    );
+    return null;
+  }
+
+  console.log(
+    'Kiscience – Discount Function ID:',
+    match.id,
+    '| title:',
+    '| apiType:',
+    match.apiType,
+  );
+
+  return match.id;
 };
 
 // ===== METAFIELD SYNC FUNCTIONS =====
@@ -69,7 +140,7 @@ const syncPricingRulesToShopMetafield = async (shop, accessToken, db) => {
     const variables = {
       metafields: [
         {
-          namespace: "affiliatehub",
+          namespace: "kiscience",
           key: "pricing_rules",
           value: metafieldValue,
           type: "json",
@@ -108,7 +179,7 @@ const syncPricingRulesToShopMetafield = async (shop, accessToken, db) => {
     variables.metafields[0].ownerId = shopGid;
 
     // Log what we're about to sync
-    console.log('affiliatehub: Syncing metafield with data:', metafieldValue);
+    console.log('Kiscience: Syncing metafield with data:', metafieldValue);
 
     const response = await fetch(`https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`, {
       method: 'POST',
@@ -122,7 +193,7 @@ const syncPricingRulesToShopMetafield = async (shop, accessToken, db) => {
     const data = await response.json();
     
     // Log the full response
-    console.log('affiliatehub: Metafield sync response:', JSON.stringify(data, null, 2));
+    console.log('Kiscience: Metafield sync response:', JSON.stringify(data, null, 2));
 
     if (data.errors) {
       console.error('GraphQL errors syncing metafield:', data.errors);
@@ -180,7 +251,7 @@ const syncRuleToDiscountMetafield = async (shop, accessToken, rule, discountId) 
     const variables = {
       metafields: [
         {
-          namespace: "$app:affiliatehub",
+          namespace: "$app:kiscience",
           key: "pricing-config",
           value: JSON.stringify(ruleConfig),
           type: "json",
@@ -243,37 +314,198 @@ const buildCustomerSelection = (rule) => {
   }
 };
 
-// Build product selection for Shopify discount
+// Normalize product id to Shopify GID (handles numeric or existing GID)
+const toProductGid = (id) => {
+  const str = String(id).trim();
+  const numeric = str.replace(/^gid:\/\/shopify\/Product\//, '');
+  return `gid://shopify/Product/${numeric}`;
+};
+
+// Fetch current product GIDs on a discount (for computing productsToRemove). Returns [] if not Basic or error.
+// Tries: discountNode(Basic GID) -> discountNode(Node GID) -> automaticDiscountNode(Basic/Node) -> metafield fallback.
+const getDiscountProductGidsFromShopify = async (shop, accessToken, shopifyDiscountId) => {
+  const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-01';
+  const numericId = String(shopifyDiscountId).match(/\/(\d+)$/)?.[1];
+  const basicGid = numericId ? `gid://shopify/DiscountAutomaticBasic/${numericId}` : null;
+  const nodeGid = numericId ? `gid://shopify/DiscountAutomaticNode/${numericId}` : null;
+
+  const runDiscountNode = async (id) => {
+    const query = `
+      query getDiscountItems($id: ID!) {
+        discountNode(id: $id) {
+          id
+          discount {
+            ... on DiscountAutomaticBasic {
+              customerGets {
+                items {
+                  ... on AllDiscountItems { __typename }
+                  ... on DiscountProducts {
+                    products(first: 250) {
+                      edges { node { id } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const res = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables: { id } })
+    });
+    const data = await res.json();
+    const items = data.data?.discountNode?.discount?.customerGets?.items;
+    return { items, errors: data.errors };
+  };
+
+  const runAutomaticDiscountNode = async (id) => {
+    const query = `
+      query getAutoDiscountItems($id: ID!) {
+        automaticDiscountNode(id: $id) {
+          id
+          automaticDiscount {
+            ... on DiscountAutomaticBasic {
+              customerGets {
+                items {
+                  ... on AllDiscountItems { __typename }
+                  ... on DiscountProducts {
+                    products(first: 250) {
+                      edges { node { id } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const res = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables: { id } })
+    });
+    const data = await res.json();
+    const autoDiscount = data.data?.automaticDiscountNode?.automaticDiscount;
+    const items = autoDiscount?.customerGets?.items;
+    return { items, errors: data.errors };
+  };
+
+  const parseItemsToGids = (items) => {
+    if (!items || items.__typename === 'AllDiscountItems' || !items.products?.edges) return [];
+    return items.products.edges.map(({ node }) => node.id).filter(Boolean);
+  };
+
+  try {
+    // 1) Try discountNode with Basic GID first (Node GID often returns "invalid id")
+    if (basicGid) {
+      const { items, errors } = await runDiscountNode(basicGid);
+      if (!errors?.length && items) {
+        const gids = parseItemsToGids(items);
+        if (gids.length > 0) {
+          console.log('[App → Store] getDiscountProductGids: got', gids.length, 'from discountNode(Basic)');
+          return gids;
+        }
+      }
+    }
+    // 2) Try discountNode with Node GID
+    const { items: itemsNode, errors: errorsNode } = await runDiscountNode(shopifyDiscountId);
+    if (!errorsNode?.length && itemsNode) {
+      const gids = parseItemsToGids(itemsNode);
+      if (gids.length > 0) {
+        console.log('[App → Store] getDiscountProductGids: got', gids.length, 'from discountNode(Node)');
+        return gids;
+      }
+    }
+    // 3) Try automaticDiscountNode with Basic then Node
+    if (basicGid) {
+      const { items: autoItems } = await runAutomaticDiscountNode(basicGid);
+      if (autoItems) {
+        const gids = parseItemsToGids(autoItems);
+        if (gids.length > 0) {
+          console.log('[App → Store] getDiscountProductGids: got', gids.length, 'from automaticDiscountNode(Basic)');
+          return gids;
+        }
+      }
+    }
+    const { items: autoItemsNode } = await runAutomaticDiscountNode(shopifyDiscountId);
+    if (autoItemsNode) {
+      const gids = parseItemsToGids(autoItemsNode);
+      if (gids.length > 0) {
+        console.log('[App → Store] getDiscountProductGids: got', gids.length, 'from automaticDiscountNode(Node)');
+        return gids;
+      }
+    }
+    // 4) Fallback: read our pricing-config metafield on the discount (last-synced product list)
+    const metaQuery = `
+      query getDiscountMetafield($ownerId: ID!) {
+        metafields(first: 5, ownerId: $ownerId, namespace: "$app:kiscience") {
+          edges { node { key value } }
+        }
+      }
+    `;
+    for (const ownerId of [basicGid, nodeGid, shopifyDiscountId].filter(Boolean)) {
+      const res = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+        method: 'POST',
+        headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: metaQuery, variables: { ownerId } })
+      });
+      const metaData = await res.json();
+      const edges = metaData.data?.metafields?.edges || [];
+      const configMf = edges.find((e) => e.node?.key === 'pricing-config');
+      if (configMf?.node?.value) {
+        const config = JSON.parse(configMf.node.value);
+        const products = Array.isArray(config.specificProducts) ? config.specificProducts : [];
+        const gids = products.map((p) => (typeof p === 'object' && p?.id ? toProductGid(p.id) : toProductGid(p))).filter(Boolean);
+        if (gids.length > 0) {
+          console.log('[App → Store] getDiscountProductGids: got', gids.length, 'from metafield pricing-config (fallback)');
+          return gids;
+        }
+      }
+    }
+    return [];
+  } catch (e) {
+    console.warn('Kiscience: getDiscountProductGidsFromShopify error:', e.message);
+    return [];
+  }
+};
+
+// Build product selection for Shopify discount.
+// For specific_products: sends productsToAdd and productsToRemove so removals sync to the store discount.
 const buildProductSelection = (rule) => {
   switch (rule.applyToProducts) {
     case 'all':
       return { all: true };
     case 'specific_products':
       if (rule.specificProducts && rule.specificProducts.length > 0) {
+        // Variant selection (Edit variants) — commented out for now; always use product-level
+        // const allHaveVariantIds = rule.specificProducts.every((p) => Array.isArray(p.variantIds) && p.variantIds.length > 0);
+        // if (allHaveVariantIds) {
+        //   const variantGids = rule.specificProducts.flatMap((p) =>
+        //     (p.variantIds || []).map((vid) => `gid://shopify/ProductVariant/${vid}`)
+        //   );
+        //   return { products: { productVariantsToAdd: variantGids } };
+        // }
         return {
           products: {
-            productsToAdd: rule.specificProducts.map(p => `gid://shopify/Product/${p.id}`)
+            productsToAdd: rule.specificProducts.map((p) => toProductGid(p.id))
           }
         };
       }
       return { all: true };
     case 'specific_variants':
       if (rule.specificVariants && rule.specificVariants.length > 0) {
-        // IMPORTANT: Shopify API doesn't support variant-only targeting in automatic discounts
-        // When you target specific variants, Shopify applies to all variants of those products
-        // Solution: Target the product level and let the metafield/theme handle variant filtering
-        const uniqueProductIds = [...new Set(rule.specificVariants.map(v => v.productId))];
+        // Try variant-level targeting (Shopify Admin supports "Edit variants" on discounts).
+        // If the API returns "has some of its variants entitled" we may need to fall back to product-level.
+        const variantGids = rule.specificVariants.map((v) => `gid://shopify/ProductVariant/${v.id}`);
         return {
           products: {
-            productsToAdd: uniqueProductIds.map(id => `gid://shopify/Product/${id}`)
+            productVariantsToAdd: variantGids
           }
         };
-        // COMMENTED OUT: productVariantsToAdd causes "has some of its variants entitled" error
-        // return {
-        //   products: {
-        //     productVariantsToAdd: rule.specificVariants.map(v => `gid://shopify/ProductVariant/${v.id}`)
-        //   }
-        // };
       }
       return { all: true };
     case 'collections':
@@ -655,7 +887,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
   const products = await getMatchingProducts(shop, accessToken, rule);
   
   if (products.length === 0) {
-    console.log('affiliatehub: No matching products found for new_price calculation');
+    console.log('Kiscience: No matching products found for new_price calculation');
     return [];
   }
   
@@ -667,7 +899,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
     
     // Skip if new price is higher than or equal to original price
     if (originalPrice <= newPrice) {
-      console.log(`affiliatehub: Skipping product ${product.productId || product.variantId} - new price (${newPrice}) >= original price (${originalPrice})`);
+      console.log(`Kiscience: Skipping product ${product.productId || product.variantId} - new price (${newPrice}) >= original price (${originalPrice})`);
       continue;
     }
     
@@ -760,7 +992,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
       
       if (result.automaticDiscountNode?.id) {
         discountIds.push(result.automaticDiscountNode.id);
-        console.log(`affiliatehub: Created discount for product ${product.productId || product.variantId}: ${originalPrice} -> ${newPrice} (${amountOff} off)`);
+        console.log(`Kiscience: Created discount for product ${product.productId || product.variantId}: ${originalPrice} -> ${newPrice} (${amountOff} off)`);
       }
     } catch (error) {
       console.error(`Error creating discount for product ${product.productId || product.variantId}:`, error);
@@ -768,7 +1000,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
     }
   }
   
-  console.log(`affiliatehub: Created ${discountIds.length} discounts for new_price rule`);
+  console.log(`Kiscience: Created ${discountIds.length} discounts for new_price rule`);
   return discountIds;
 };
 
@@ -781,7 +1013,7 @@ const calculateNewPriceDiscount = async (shop, accessToken, rule) => {
   const products = await getMatchingProducts(shop, accessToken, rule);
   
   if (products.length === 0) {
-    console.log('affiliatehub: No matching products found for new_price calculation');
+    console.log('Kiscience: No matching products found for new_price calculation');
     return null;
   }
   
@@ -790,14 +1022,106 @@ const calculateNewPriceDiscount = async (shop, accessToken, rule) => {
   
   if (maxOriginalPrice > 0 && maxOriginalPrice > newPrice) {
     const amountOff = maxOriginalPrice - newPrice;
-    console.log(`affiliatehub: Converting new_price (${newPrice}) to amount_off (${amountOff}) based on max price (${maxOriginalPrice}) from ${products.length} products`);
+    console.log(`Kiscience: Converting new_price (${newPrice}) to amount_off (${amountOff}) based on max price (${maxOriginalPrice}) from ${products.length} products`);
     return amountOff;
   }
   
   return null;
 };
 
-// Create Shopify Automatic Discount
+// Create Shopify Automatic App Discount (Function-based)
+// This connects a pricing rule to the discount-function extension
+const createFunctionDiscountForRule = async (shop, accessToken, rule, ruleId) => {
+  const discountTitle = rule.discountTitle || rule.name;
+
+  // Resolve the function ID: use env override if present, otherwise
+  // query the Admin API for this app's cart.lines.discounts.generate function.
+  let functionId = DISCOUNT_FUNCTION_ID;
+  if (!functionId) {
+    functionId = await getDiscountFunctionId(shop, accessToken);
+    if (!functionId) {
+      throw new Error(
+        'Unable to resolve discount function ID. Ensure the discount-function extension is deployed for this app.',
+      );
+    }
+  }
+
+  const mutation = `
+      mutation discountAutomaticAppCreate($automaticAppDiscount: DiscountAutomaticAppInput!) {
+      discountAutomaticAppCreate(automaticAppDiscount: $automaticAppDiscount) {
+        automaticAppDiscount {
+          discountId
+          title
+          appDiscountType {
+            functionId
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const variables = {
+    automaticAppDiscount: {
+      title: discountTitle,
+      functionId,
+      startsAt: new Date().toISOString(),
+      discountClasses: ["PRODUCT"],
+      combinesWith: {
+        orderDiscounts: true,
+        productDiscounts: true,
+        shippingDiscounts: true,
+      },
+    },
+  };
+  
+
+  const response = await fetch(
+    `https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: mutation, variables }),
+    },
+  );
+
+  const data = await response.json();
+
+  if (data.errors) {
+    console.error('Shopify GraphQL errors (discountAutomaticAppCreate):', data.errors);
+    throw new Error(
+      `Failed to create Function-based discount: ${JSON.stringify(data.errors)}`,
+    );
+  }
+
+  const payload = data.data?.discountAutomaticAppCreate;
+
+  if (payload?.userErrors && payload.userErrors.length > 0) {
+    console.error('Shopify user errors (discountAutomaticAppCreate):', payload.userErrors);
+    throw new Error(
+      `Failed to create Function-based discount: ${payload.userErrors
+        .map((e) => e.message)
+        .join(', ')}`,
+    );
+  }
+
+  const discountId = payload?.automaticAppDiscount?.discountId || null;
+
+  if (discountId) {
+    // Store the rule configuration on the discount so the Function can read it.
+    await syncRuleToDiscountMetafield(shop, accessToken, rule, discountId);
+  }
+
+  return discountId;
+};
+
+// Create Shopify Automatic Discount (basic / legacy)
 // How it works:
 // When you set new_price = £2 for a product that costs £40
 // System fetches the product's original price (£40)
@@ -805,7 +1129,15 @@ const calculateNewPriceDiscount = async (shop, accessToken, rule) => {
 // Creates Shopify discount with £38 amount off
 // At checkout, the discount applies automatically: £40 - £38 = £2
 
-const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
+/**
+ * @param {string} shop
+ * @param {string} accessToken
+ * @param {object} rule
+ * @param {string} ruleId
+ * @param {{ allowCustomerTagsFallback?: boolean }} [options] - If true, create Basic discount even for customer_tags (e.g. when Function requires Plus)
+ */
+const createShopifyDiscount = async (shop, accessToken, rule, ruleId, options = {}) => {
+  const { allowCustomerTagsFallback = false } = options;
   const discountTitle = rule.discountTitle || rule.name;
   
   // For new_price, create individual discounts per product to ensure correct pricing
@@ -816,7 +1148,7 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
       // Note: We may need to update the database schema to store multiple discount IDs
       return discountIds[0];
     } else {
-      console.log('affiliatehub: No discounts created for new_price - no valid products found');
+      console.log('Kiscience: No discounts created for new_price - no valid products found');
       return null;
     }
   }
@@ -845,7 +1177,7 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
     };
   } else {
     // Unknown price type - skip (shouldn't reach here as new_price is converted above)
-    console.log('affiliatehub: Unknown effective price type:', effectivePriceType);
+    console.log('Kiscience: Unknown effective price type:', effectivePriceType);
     return null;
   }
   
@@ -858,22 +1190,31 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
   // - customer_tags: Shopify discounts don't support tag-based filtering
   // - specific: Shopify doesn't support filtering by specific customer emails
   // - non_logged_in: Shopify doesn't support filtering by login status
-  
-  if ((rule.applyToCustomers === 'customer_tags' && rule.customerTags && rule.customerTags.length > 0) ||
+  // When allowCustomerTagsFallback is true (e.g. shop not on Plus), we still create a Basic discount;
+  // merchant can assign a customer segment in the app to restrict who gets it.
+  const skipForCustomerCondition =
+    !allowCustomerTagsFallback &&
+    ((rule.applyToCustomers === 'customer_tags' && rule.customerTags && rule.customerTags.length > 0) ||
       (rule.applyToCustomers === 'specific' && rule.specificCustomers && rule.specificCustomers.length > 0) ||
-      rule.applyToCustomers === 'non_logged_in') {
-    console.log(`affiliatehub: Skipping Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
+      rule.applyToCustomers === 'non_logged_in');
+
+  if (skipForCustomerCondition) {
+    console.log(`Kiscience: Skipping Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
     console.log('         Reason: Shopify automatic discounts cannot filter by this customer condition');
     console.log('         The theme app extension will handle discount display/calculation on PDP');
     console.log('         At checkout: Discount will NOT appear (Shopify limitation)');
     return null;
+  }
+
+  if (allowCustomerTagsFallback && rule.applyToCustomers === 'customer_tags') {
+    console.log(`Kiscience: Creating Basic discount (Function requires Plus). Assign a customer segment in the app to restrict who gets it.`);
   }
   
   // For 'all' and 'logged_in' conditions, create Shopify discount
   // Note: 'logged_in' will apply at checkout to all users (can't filter by login status in Shopify)
   // The PDP will show correct filtered pricing via theme app extension
   if (rule.applyToCustomers === 'logged_in') {
-    console.log(`affiliatehub: Creating Shopify discount for logged_in rule: ${rule.name}`);
+    console.log(`Kiscience: Creating Shopify discount for logged_in rule: ${rule.name}`);
     console.log('         Note: At checkout, this discount will apply to all users (Shopify limitation)');
     console.log('         On PDP: Only logged-in customers see the discounted price (via theme app)');
   }
@@ -946,24 +1287,11 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
 };
 
 // Update Shopify Automatic Discount
-const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId) => {
+// When rule is customer_tags/specific/non_logged_in we still update the discount (products, title, value)
+// if one exists (e.g. Basic discount created via Plus fallback), so product changes sync to Shopify.
+// Optional currentProductGidsOverride: when API/metafield can't return current products, use this (e.g. rule's previous specificProducts as GIDs).
+const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId, currentProductGidsOverride = null) => {
   const discountTitle = rule.discountTitle || rule.name;
-  
-  // Check if rule has customer filtering that prevents Shopify discount creation
-  if ((rule.applyToCustomers === 'customer_tags' && rule.customerTags && rule.customerTags.length > 0) ||
-      (rule.applyToCustomers === 'specific' && rule.specificCustomers && rule.specificCustomers.length > 0) ||
-      rule.applyToCustomers === 'non_logged_in') {
-    if (shopifyDiscountId) {
-      try {
-        await deleteShopifyDiscount(shop, accessToken, shopifyDiscountId);
-        console.log(`affiliatehub: Deleted Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
-        console.log('         The theme app extension will handle filtering on PDP');
-      } catch (error) {
-        console.error('affiliatehub: Error deleting discount:', error);
-      }
-    }
-    return null;
-  }
   
   // For new_price, delete old discount and create new per-product discounts
   if (rule.priceType === 'new_price') {
@@ -971,9 +1299,9 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
     if (shopifyDiscountId) {
       try {
         await deleteShopifyDiscount(shop, accessToken, shopifyDiscountId);
-        console.log('affiliatehub: Deleted old discount for new_price update');
+        console.log('Kiscience: Deleted old discount for new_price update');
       } catch (error) {
-        console.error('affiliatehub: Error deleting old discount:', error);
+        console.error('Kiscience: Error deleting old discount:', error);
         // Continue anyway - try to create new discounts
       }
     }
@@ -984,7 +1312,7 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
       // Return the first discount ID for backward compatibility
       return discountIds[0];
     } else {
-      console.log('affiliatehub: No discounts created for new_price update - no valid products found');
+      console.log('Kiscience: No discounts created for new_price update - no valid products found');
       return null;
     }
   }
@@ -993,8 +1321,36 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
   let effectivePriceType = rule.priceType;
   let effectiveDiscountValue = parseFloat(rule.discountValue);
   
-  // Build product selection first to determine if we're targeting all items
-  const productSelection = buildProductSelection(rule);
+  // Build product selection. For specific_products (product-level only), fetch current and send add/remove.
+  // Variant selection (Edit variants) commented out — always use product-level path for specific_products.
+  // const specificProductsWithVariants = rule.applyToProducts === 'specific_products' &&
+  //   Array.isArray(rule.specificProducts) &&
+  //   rule.specificProducts.every((p) => Array.isArray(p.variantIds) && p.variantIds.length > 0);
+  let productSelection;
+  if (rule.applyToProducts === 'specific_products' && Array.isArray(rule.specificProducts)) {
+    if (rule.specificProducts.length === 0) {
+      productSelection = { all: true };
+      console.log('[App → Store] Product selection: switching to all products (sync to store)');
+    } else {
+      let currentGids = await getDiscountProductGidsFromShopify(shop, accessToken, shopifyDiscountId);
+      if (currentGids.length === 0 && Array.isArray(currentProductGidsOverride) && currentProductGidsOverride.length > 0) {
+        currentGids = currentProductGidsOverride;
+        console.log('[App → Store] Product selection: using previous app list as current (API/metafield returned none)', currentGids.length);
+      }
+      const desiredGids = rule.specificProducts.map(p => toProductGid(p.id));
+      const productsToAdd = desiredGids.filter(g => !currentGids.includes(g));
+      const productsToRemove = currentGids.filter(g => !desiredGids.includes(g));
+      console.log('[App → Store] Product selection: current on store', currentGids.length, 'desired', desiredGids.length, 'toAdd', productsToAdd.length, 'toRemove', productsToRemove.length, { productsToAdd, productsToRemove });
+      productSelection = {
+        products: {
+          productsToAdd,
+          ...(productsToRemove.length > 0 && { productsToRemove })
+        }
+      };
+    }
+  } else {
+    productSelection = buildProductSelection(rule);
+  }
   const isAllItems = productSelection.all === true;
   
   // Build the discount value based on effective priceType (may have been converted from new_price)
@@ -1013,7 +1369,7 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
     };
   } else {
     // Unknown price type - skip
-    console.log('affiliatehub: Unknown effective price type:', effectivePriceType);
+    console.log('Kiscience: Unknown effective price type:', effectivePriceType);
     return null;
   }
   
@@ -1037,54 +1393,73 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
       }
     }
   `;
-  
-  const variables = {
-    id: shopifyDiscountId,
-    automaticBasicDiscount: {
-      title: discountTitle,
-      customerGets: {
-        value: discountValue,
-        items: productSelection
+
+  const runBasicUpdate = async (id) => {
+    const variables = {
+      id,
+      automaticBasicDiscount: {
+        title: discountTitle,
+        customerGets: {
+          value: discountValue,
+          items: productSelection
+        }
       }
+    };
+    const response = await fetch(`https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query: mutation, variables })
+    });
+    const data = await response.json();
+    if (data.errors) {
+      return { errors: data.errors, userErrors: [] };
     }
+    const result = data.data.discountAutomaticBasicUpdate;
+    return { result, userErrors: result?.userErrors || [] };
   };
 
-  const response = await fetch(`https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'X-Shopify-Access-Token': accessToken,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ query: mutation, variables })
-  });
-
-  const data = await response.json();
-  
-  if (data.errors) {
-    console.error('Shopify GraphQL errors:', data.errors);
-    throw new Error(`Failed to update Shopify discount: ${JSON.stringify(data.errors)}`);
-  }
-  
-  const result = data.data.discountAutomaticBasicUpdate;
-  
-  if (result.userErrors && result.userErrors.length > 0) {
-    console.error('Shopify user errors:', result.userErrors);
-    
-    // Check if discount doesn't exist - this means it was deleted or never existed
-    const hasNotFoundError = result.userErrors.some(err => 
-      err.message && (err.message.includes('does not exist') || err.message.includes('Discount does not exist'))
+  const isNotFoundOrInvalidId = (errs) =>
+    (errs || []).some(e =>
+      e.message && (
+        e.message.includes('does not exist') ||
+        e.message.includes('Discount does not exist') ||
+        e.message.includes('Invalid id') ||
+        e.message.includes('not found')
+      )
     );
-    
-    if (hasNotFoundError) {
-      console.log('affiliatehub: Discount does not exist in Shopify - will create new one');
-      return null; // Return null to indicate discount needs to be created
-    }
-    
-    throw new Error(`Failed to update Shopify discount: ${result.userErrors.map(e => e.message).join(', ')}`);
+
+  // Try Basic update: use given ID first, then explicit Basic GID if we have Node/numeric (so product list syncs in Shopify admin)
+  let out = await runBasicUpdate(shopifyDiscountId);
+  if (out.errors) {
+    console.error('Shopify GraphQL errors:', out.errors);
+    throw new Error(`Failed to update Shopify discount: ${JSON.stringify(out.errors)}`);
   }
-  
-  // Return the discount ID on success
-  return result.automaticDiscountNode?.id || shopifyDiscountId;
+  if (out.userErrors.length > 0 && isNotFoundOrInvalidId(out.userErrors)) {
+    const idStr = String(shopifyDiscountId).trim();
+    const numeric = idStr.match(/\/(\d+)$/)?.[1] || idStr;
+    const basicGid = `gid://shopify/DiscountAutomaticBasic/${numeric}`;
+    if (basicGid !== shopifyDiscountId) {
+      console.log('Kiscience: Retrying discount update with Basic GID for product sync');
+      out = await runBasicUpdate(basicGid);
+    }
+  }
+  if (out.errors) {
+    console.error('Shopify GraphQL errors:', out.errors);
+    throw new Error(`Failed to update Shopify discount: ${JSON.stringify(out.errors)}`);
+  }
+  if (out.userErrors && out.userErrors.length > 0) {
+    const hasNotFound = isNotFoundOrInvalidId(out.userErrors);
+    if (hasNotFound) {
+      console.log('Kiscience: Discount does not exist (may be App discount) - will create new one if needed');
+      return null;
+    }
+    throw new Error(`Failed to update Shopify discount: ${out.userErrors.map(e => e.message).join(', ')}`);
+  }
+  console.log('[App → Store] Product selection: success — discount updated in app and store');
+  return (out.result && out.result.automaticDiscountNode?.id) || shopifyDiscountId;
 };
 
 // Delete Shopify Automatic Discount
@@ -1354,20 +1729,59 @@ const createPricingRule = async (req, res, db) => {
     if (newRule.status === 'active') {
       try {
         const accessToken = await getShopAccessToken(shop, db);
-        shopifyDiscountId = await createShopifyDiscount(shop, accessToken, newRule, ruleId);
-        
+
+        // For customer tag-based rules, try Function-based automatic discount (requires Shopify Plus).
+        if (
+          newRule.applyToCustomers === 'customer_tags' &&
+          Array.isArray(newRule.customerTags) &&
+          newRule.customerTags.length > 0
+        ) {
+          try {
+            shopifyDiscountId = await createFunctionDiscountForRule(
+              shop,
+              accessToken,
+              newRule,
+              ruleId,
+            );
+          } catch (functionErr) {
+            // Shop may not be on Plus – Function requires "Shop must be on a Shopify Plus plan"
+            const isPlusRequired = functionErr.message && (
+              functionErr.message.includes('Plus') ||
+              functionErr.message.includes('Shop must be on a Shopify Plus plan') ||
+              functionErr.message.includes('functions from a custom app')
+            );
+            if (isPlusRequired) {
+              console.log('Kiscience: Function-based discount not available (Plus required). Creating Basic discount instead; assign a segment in the app to restrict eligibility.');
+              shopifyDiscountId = await createShopifyDiscount(
+                shop,
+                accessToken,
+                newRule,
+                ruleId,
+                { allowCustomerTagsFallback: true },
+              );
+            } else {
+              throw functionErr;
+            }
+          }
+        } else {
+          // Fallback: legacy automatic discount behavior
+          shopifyDiscountId = await createShopifyDiscount(
+            shop,
+            accessToken,
+            newRule,
+            ruleId,
+          );
+        }
+
         // Update the rule with Shopify discount ID
         if (shopifyDiscountId) {
           await db.collection('pricing_rules').updateOne(
             { _id: result.insertedId },
-            { $set: { shopifyDiscountId } }
+            { $set: { shopifyDiscountId } },
           );
           newRule.shopifyDiscountId = shopifyDiscountId;
-          
-          // Sync rule config to discount metafield for Shopify Function
-          await syncRuleToDiscountMetafield(shop, accessToken, newRule, shopifyDiscountId);
         }
-        
+
         // Sync all rules to shop metafield for theme app extension
         metafieldSynced = await syncPricingRulesToShopMetafield(shop, accessToken, db);
       } catch (shopifyErr) {
@@ -1388,7 +1802,10 @@ const createPricingRule = async (req, res, db) => {
         ...newRule,
         id: ruleId
       },
+      ruleId,
       shopifyDiscountId,
+      discountTitle: newRule.discountTitle || newRule.name || '',
+      segmentName: (Array.isArray(newRule.customerTags) && newRule.customerTags[0]) || 'Customer Segment',
       metafieldSynced
     });
   } catch (error) {
@@ -1493,96 +1910,197 @@ const updatePricingRule = async (req, res, db) => {
       const isActive = updateData.status === 'active';
       
       if (isActive) {
-        if (shopifyDiscountId) {
-          try {
-            // Update existing Shopify discount
-            // Note: updateShopifyDiscount returns null for new_price (it deletes the discount) or if discount doesn't exist
-            const updatedDiscountId = await updateShopifyDiscount(shop, accessToken, { ...existingRule, ...updateData }, shopifyDiscountId);
-            
-            if (updatedDiscountId) {
-              // Discount was updated successfully
-              // Activate if it was inactive
-              if (!wasActive) {
-                await updateShopifyDiscountStatus(shop, accessToken, shopifyDiscountId, true);
-              }
-              
-              // Sync rule config to discount metafield
-              await syncRuleToDiscountMetafield(shop, accessToken, { ...existingRule, ...updateData }, shopifyDiscountId);
-            } else {
-              // Discount was deleted or doesn't exist (e.g., price type changed to new_price, or discount was manually deleted)
-              // Create a new discount instead
-              console.log('affiliatehub: Discount not found or deleted - creating new discount');
-              shopifyDiscountId = await createShopifyDiscount(shop, accessToken, { ...existingRule, ...updateData }, id);
-              
-              // Update the shopifyDiscountId in database
-              if (shopifyDiscountId) {
-                await db.collection('pricing_rules').updateOne(
-                  { _id: new ObjectId(id) },
-                  { $set: { shopifyDiscountId } }
+        const mergedRule = { ...existingRule, ...updateData };
+
+        // For customer tag-based rules, manage a Function-based or Basic (fallback) discount.
+        if (
+          mergedRule.applyToCustomers === 'customer_tags' &&
+          Array.isArray(mergedRule.customerTags) &&
+          mergedRule.customerTags.length > 0
+        ) {
+          if (shopifyDiscountId) {
+            // Sync product/title/value to Shopify discount (Basic or Function-based)
+            try {
+              await updateShopifyDiscount(
+                shop,
+                accessToken,
+                mergedRule,
+                shopifyDiscountId,
+              );
+            } catch (updateErr) {
+              console.error('Kiscience: Error syncing discount products/title/value:', updateErr);
+            }
+            // For Function-based discounts, also sync metafield config
+            await syncRuleToDiscountMetafield(
+              shop,
+              accessToken,
+              mergedRule,
+              shopifyDiscountId,
+            );
+          } else {
+            // Create a new Function-based automatic discount (requires Shopify Plus).
+            try {
+              shopifyDiscountId = await createFunctionDiscountForRule(
+                shop,
+                accessToken,
+                mergedRule,
+                id,
+              );
+            } catch (functionErr) {
+              const isPlusRequired = functionErr.message && (
+                functionErr.message.includes('Plus') ||
+                functionErr.message.includes('Shop must be on a Shopify Plus plan') ||
+                functionErr.message.includes('functions from a custom app')
+              );
+              if (isPlusRequired) {
+                console.log('Kiscience: Function-based discount not available (Plus required). Creating Basic discount instead.');
+                shopifyDiscountId = await createShopifyDiscount(
+                  shop,
+                  accessToken,
+                  mergedRule,
+                  id,
+                  { allowCustomerTagsFallback: true },
                 );
-                
-                // Sync rule config to discount metafield
-                await syncRuleToDiscountMetafield(shop, accessToken, { ...existingRule, ...updateData }, shopifyDiscountId);
               } else {
-                // Clear the shopifyDiscountId from database if creation failed (e.g., new_price type)
-                await db.collection('pricing_rules').updateOne(
-                  { _id: new ObjectId(id) },
-                  { $unset: { shopifyDiscountId: "" } }
-                );
+                throw functionErr;
               }
             }
-          } catch (updateErr) {
-            // If update fails with "does not exist" error, create a new discount
-            if (updateErr.message && updateErr.message.includes('does not exist')) {
-              console.log('affiliatehub: Discount does not exist - creating new discount');
-              shopifyDiscountId = await createShopifyDiscount(shop, accessToken, { ...existingRule, ...updateData }, id);
-              
-              if (shopifyDiscountId) {
-                await db.collection('pricing_rules').updateOne(
-                  { _id: new ObjectId(id) },
-                  { $set: { shopifyDiscountId } }
-                );
-                
-                await syncRuleToDiscountMetafield(shop, accessToken, { ...existingRule, ...updateData }, shopifyDiscountId);
-              } else {
-                await db.collection('pricing_rules').updateOne(
-                  { _id: new ObjectId(id) },
-                  { $unset: { shopifyDiscountId: "" } }
-                );
-              }
-            } else {
-              // Re-throw other errors
-              throw updateErr;
+
+            if (shopifyDiscountId) {
+              await db.collection('pricing_rules').updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { shopifyDiscountId } },
+              );
             }
           }
         } else {
-          // Create new Shopify discount (only for percent_off and amount_off)
-          shopifyDiscountId = await createShopifyDiscount(shop, accessToken, { ...existingRule, ...updateData }, id);
-          
-          // Update the shopifyDiscountId in database
+          // Legacy automatic discount path (non tag-based rules)
           if (shopifyDiscountId) {
-            await db.collection('pricing_rules').updateOne(
-              { _id: new ObjectId(id) },
-              { $set: { shopifyDiscountId } }
+            try {
+              const updatedDiscountId = await updateShopifyDiscount(
+                shop,
+                accessToken,
+                mergedRule,
+                shopifyDiscountId,
+              );
+
+              if (updatedDiscountId) {
+                if (!wasActive) {
+                  await updateShopifyDiscountStatus(
+                    shop,
+                    accessToken,
+                    shopifyDiscountId,
+                    true,
+                  );
+                }
+
+                await syncRuleToDiscountMetafield(
+                  shop,
+                  accessToken,
+                  mergedRule,
+                  shopifyDiscountId,
+                );
+              } else {
+                console.log(
+                  'Kiscience: Discount not found or deleted - creating new discount',
+                );
+                shopifyDiscountId = await createShopifyDiscount(
+                  shop,
+                  accessToken,
+                  mergedRule,
+                  id,
+                );
+
+                if (shopifyDiscountId) {
+                  await db.collection('pricing_rules').updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { shopifyDiscountId } },
+                  );
+
+                  await syncRuleToDiscountMetafield(
+                    shop,
+                    accessToken,
+                    mergedRule,
+                    shopifyDiscountId,
+                  );
+                } else {
+                  await db.collection('pricing_rules').updateOne(
+                    { _id: new ObjectId(id) },
+                    { $unset: { shopifyDiscountId: '' } },
+                  );
+                }
+              }
+            } catch (updateErr) {
+              if (updateErr.message && updateErr.message.includes('does not exist')) {
+                console.log('Kiscience: Discount does not exist - creating new discount');
+                shopifyDiscountId = await createShopifyDiscount(
+                  shop,
+                  accessToken,
+                  mergedRule,
+                  id,
+                );
+
+                if (shopifyDiscountId) {
+                  await db.collection('pricing_rules').updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { shopifyDiscountId } },
+                  );
+
+                  await syncRuleToDiscountMetafield(
+                    shop,
+                    accessToken,
+                    mergedRule,
+                    shopifyDiscountId,
+                  );
+                } else {
+                  await db.collection('pricing_rules').updateOne(
+                    { _id: new ObjectId(id) },
+                    { $unset: { shopifyDiscountId: '' } },
+                  );
+                }
+              } else {
+                throw updateErr;
+              }
+            }
+          } else {
+            shopifyDiscountId = await createShopifyDiscount(
+              shop,
+              accessToken,
+              mergedRule,
+              id,
             );
-            
-            // Sync rule config to discount metafield
-            await syncRuleToDiscountMetafield(shop, accessToken, { ...existingRule, ...updateData }, shopifyDiscountId);
+
+            if (shopifyDiscountId) {
+              await db.collection('pricing_rules').updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { shopifyDiscountId } },
+              );
+
+              await syncRuleToDiscountMetafield(
+                shop,
+                accessToken,
+                mergedRule,
+                shopifyDiscountId,
+              );
+            }
           }
-          // Note: If shopifyDiscountId is null (e.g., new_price type), no Shopify discount is created
-          // The theme app extension handles new_price display on the storefront
         }
       } else if (!isActive && shopifyDiscountId) {
-        // Deactivate Shopify discount (only if it exists)
+        // Deactivate legacy automatic discounts; Function-based ones will simply
+        // return no operations when status is inactive based on metafield config.
         try {
           await updateShopifyDiscountStatus(shop, accessToken, shopifyDiscountId, false);
         } catch (deactivateErr) {
-          // If discount doesn't exist, just clear the ID from database
-          if (deactivateErr.message && deactivateErr.message.includes('does not exist')) {
-            console.log('affiliatehub: Discount does not exist when deactivating - clearing from database');
+          if (
+            deactivateErr.message &&
+            deactivateErr.message.includes('does not exist')
+          ) {
+            console.log(
+              'Kiscience: Discount does not exist when deactivating - clearing from database',
+            );
             await db.collection('pricing_rules').updateOne(
               { _id: new ObjectId(id) },
-              { $unset: { shopifyDiscountId: "" } }
+              { $unset: { shopifyDiscountId: '' } },
             );
             shopifyDiscountId = null;
           } else {
@@ -1598,6 +2116,10 @@ const updatePricingRule = async (req, res, db) => {
       shopifyError = shopifyErr.message;
     }
 
+    const ruleId = existingRule._id.toString();
+    const finalDiscountTitle = updateData.discountTitle ?? existingRule.discountTitle ?? '';
+    const finalSegmentName = (updateData.customerTags && updateData.customerTags[0]) || (existingRule.customerTags && existingRule.customerTags[0]) || 'Customer Segment';
+
     res.json({ 
       success: true, 
       message: shopifyError 
@@ -1606,9 +2128,14 @@ const updatePricingRule = async (req, res, db) => {
       rule: {
         ...existingRule,
         ...updateData,
-        id: existingRule._id.toString(),
+        id: ruleId,
         shopifyDiscountId
-      }
+      },
+      ruleId,
+      shopifyDiscountId: shopifyDiscountId || undefined,
+      needsSegmentAssignment: !!shopifyDiscountId,
+      discountTitle: finalDiscountTitle,
+      segmentName: finalSegmentName
     });
   } catch (error) {
     console.error('Error updating pricing rule:', error);
@@ -2280,6 +2807,803 @@ const getStorefrontPricingRules = async (req, res, db) => {
   }
 };
 
+/**
+ * Get the "Applies to" product list from the linked Shopify discount (for modal).
+ */
+const getDiscountProductsFromShopify = async (req, res, db) => {
+  try {
+    const { shop } = req.query;
+    const { id } = req.params;
+
+    if (!shop) {
+      return res.status(400).json({ error: 'Shop parameter is required' });
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid rule ID' });
+    }
+
+    const accessToken = await getShopAccessToken(shop, db);
+
+    const rule = await db.collection('pricing_rules').findOne({
+      _id: new ObjectId(id),
+      shop
+    });
+
+    if (!rule) {
+      return res.status(404).json({ error: 'Pricing rule not found' });
+    }
+
+    const shopifyDiscountId = rule.shopifyDiscountId;
+    if (!shopifyDiscountId) {
+      return res.json({
+        success: true,
+        appliesToAll: false,
+        products: rule.specificProducts || []
+      });
+    }
+
+    const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-01';
+    const runGraphQL = async (variables) => {
+      const query = `
+        query getDiscountItems($id: ID!) {
+          discountNode(id: $id) {
+            id
+            discount {
+              ... on DiscountAutomaticBasic {
+                customerGets {
+                  items {
+                    ... on AllDiscountItems { __typename }
+                    ... on DiscountProducts {
+                      products(first: 250) {
+                        edges {
+                          node { id title handle }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+      const res = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query, variables })
+      });
+      return res.json();
+    };
+
+    const numericId = String(shopifyDiscountId).match(/\/(\d+)$/)?.[1];
+    const basicGid = numericId ? `gid://shopify/DiscountAutomaticBasic/${numericId}` : null;
+
+    // Try Basic GID first (discountNode often returns "invalid id" for Node GID)
+    let data = basicGid ? await runGraphQL({ id: basicGid }) : await runGraphQL({ id: shopifyDiscountId });
+    let discount = data.data?.discountNode?.discount;
+    let items = discount?.customerGets?.items;
+
+    if (!items && basicGid && basicGid !== shopifyDiscountId) {
+      data = await runGraphQL({ id: shopifyDiscountId });
+      discount = data.data?.discountNode?.discount;
+      items = discount?.customerGets?.items;
+    }
+
+    // Also try automaticDiscountNode (works even when discountNode returns errors)
+    if (!items && shopifyDiscountId) {
+      const autoQuery = `
+        query getAutoDiscountItems($id: ID!) {
+          automaticDiscountNode(id: $id) {
+            id
+            automaticDiscount {
+              ... on DiscountAutomaticBasic {
+                customerGets {
+                  items {
+                    ... on AllDiscountItems { __typename }
+                    ... on DiscountProducts {
+                      products(first: 250) {
+                        edges {
+                          node { id title handle }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+      for (const tryId of [basicGid, shopifyDiscountId].filter(Boolean)) {
+        const autoRes = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ query: autoQuery, variables: { id: tryId } })
+        });
+        const autoData = await autoRes.json();
+        const autoDiscount = autoData.data?.automaticDiscountNode?.automaticDiscount;
+        const autoItems = autoDiscount?.customerGets?.items;
+        if (autoItems && autoItems.products?.edges?.length > 0) {
+          items = autoItems;
+          discount = { customerGets: { items: autoItems } };
+          break;
+        }
+      }
+    }
+
+    if (data.errors) {
+      console.error('Kiscience: getDiscountProductsFromShopify GraphQL errors:', data.errors);
+      return res.json({
+        success: true,
+        appliesToAll: false,
+        products: rule.specificProducts || []
+      });
+    }
+
+    const isAllItems = !items || items.__typename === 'AllDiscountItems' || !items.products;
+    const productEdges = items?.products?.edges || [];
+    let products = productEdges.map(({ node }) => ({
+      id: String(node.id).replace(/^gid:\/\/shopify\/Product\//, ''),
+      title: node.title || '',
+      handle: node.handle || ''
+    }));
+
+    // App/function discounts: customerGets not exposed – use our metafield only as last resort
+    if (products.length === 0 && shopifyDiscountId) {
+      try {
+        const mfQuery = `
+          query getDiscountMetafields($ownerId: ID!) {
+            metafields(first: 5, ownerId: $ownerId, namespace: "$app:kiscience") {
+              edges {
+                node {
+                  key
+                  value
+                }
+              }
+            }
+          }
+        `;
+        const mfRes = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ query: mfQuery, variables: { ownerId: shopifyDiscountId } })
+        });
+        const mfData = await mfRes.json();
+        const edges = mfData.data?.metafields?.edges || [];
+        const configMf = edges.find((e) => e.node?.key === 'pricing-config');
+        if (configMf?.node?.value) {
+          const config = JSON.parse(configMf.node.value);
+          products = Array.isArray(config.specificProducts) ? config.specificProducts : [];
+        }
+      } catch (e) {
+        console.warn('Kiscience: getDiscountProductsFromShopify metafield fallback:', e.message);
+      }
+    }
+
+    if (products.length === 0 && (rule.specificProducts || []).length > 0) {
+      products = rule.specificProducts;
+    }
+
+    return res.json({
+      success: true,
+      appliesToAll: isAllItems && products.length === 0,
+      products
+    });
+  } catch (err) {
+    console.error('Kiscience: getDiscountProductsFromShopify error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to load discount products'
+    });
+  }
+};
+
+/**
+ * Update rule's product list and sync to Shopify discount (for product modal confirm).
+ */
+const updateRuleProducts = async (req, res, db) => {
+  try {
+    const { shop } = req.query;
+    const { id } = req.params;
+    const { specificProducts } = req.body || {};
+
+    if (!shop) {
+      return res.status(400).json({ error: 'Shop parameter is required' });
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid rule ID' });
+    }
+
+    const accessToken = await getShopAccessToken(shop, db);
+
+    const rule = await db.collection('pricing_rules').findOne({
+      _id: new ObjectId(id),
+      shop
+    });
+
+    if (!rule) {
+      return res.status(404).json({ error: 'Pricing rule not found' });
+    }
+
+    const products = Array.isArray(specificProducts) ? specificProducts : [];
+    const applyToProducts = products.length > 0 ? 'specific_products' : 'all';
+
+    // Previous product list (before this save) — use as "current on store" when API/metafield return none, so we can compute productsToRemove
+    const previousProductGids = (rule.specificProducts || []).map((p) => toProductGid(typeof p === 'object' ? p.id : p)).filter(Boolean);
+
+    await db.collection('pricing_rules').updateOne(
+      { _id: new ObjectId(id), shop },
+      {
+        $set: {
+          applyToProducts,
+          specificProducts: products,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    const updatedRule = await db.collection('pricing_rules').findOne({ _id: new ObjectId(id), shop });
+    const ruleForSync = {
+      ...updatedRule,
+      id: updatedRule._id.toString(),
+      specificProducts: updatedRule.specificProducts || [],
+      specificVariants: updatedRule.specificVariants || [],
+      collections: updatedRule.collections || [],
+      productTags: updatedRule.productTags || []
+    };
+
+    const shopifyDiscountId = rule.shopifyDiscountId;
+    console.log('[App] updateRuleProducts: rule', id, 'products count', products.length, 'applyTo', applyToProducts, 'shopifyDiscountId', shopifyDiscountId || 'none');
+    if (shopifyDiscountId) {
+      await updateShopifyDiscount(shop, accessToken, ruleForSync, shopifyDiscountId, previousProductGids);
+      await syncRuleToDiscountMetafield(shop, accessToken, ruleForSync, shopifyDiscountId);
+      console.log('[App → Store] updateRuleProducts: synced to store discount', shopifyDiscountId);
+    }
+    await syncPricingRulesToShopMetafield(shop, accessToken, db);
+
+    return res.json({
+      success: true,
+      message: 'Product selection updated and synced to discount.',
+      specificProducts: updatedRule.specificProducts
+    });
+  } catch (err) {
+    console.error('[App] updateRuleProducts error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to update products'
+    });
+  }
+};
+
+/**
+* Verify if segment has been assigned to the discount
+* Checks Shopify discount to see if customer segments are configured
+*/
+const verifySegmentAssignment = async (req, res, db) => {
+  try {
+    const { shop } = req.query;
+    const { id } = req.params;
+
+    if (!shop) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Shop parameter is required' 
+      });
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid rule ID' 
+      });
+    }
+
+    const accessToken = await getShopAccessToken(shop, db);
+
+    // Get the pricing rule
+    const rule = await db.collection('pricing_rules').findOne({
+      _id: new ObjectId(id),
+      shop
+    });
+
+    if (!rule) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Pricing rule not found' 
+      });
+    }
+
+    if (!rule.shopifyDiscountId) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'No Shopify discount associated with this rule',
+        segmentAssigned: false
+      });
+    }
+
+    // Query Shopify 2025-10: segment eligibility is on context (not customerSelection)
+    const query = `
+      query getDiscount($id: ID!) {
+        discountNode(id: $id) {
+          id
+          discount {
+            ... on DiscountAutomaticApp {
+              title
+              context {
+                ... on DiscountCustomerSegments {
+                  segments { id name }
+                }
+              }
+            }
+            ... on DiscountAutomaticBasic {
+              title
+              context {
+                ... on DiscountCustomerSegments {
+                  segments { id name }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      id: rule.shopifyDiscountId
+    };
+
+    // Use 2025-10 so segment eligibility is returned (older versions filter out segment-based discounts)
+    const verifyApiVersion = '2025-10';
+    const response = await fetch(`https://${shop}/admin/api/${verifyApiVersion}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, variables })
+    });
+
+    const data = await response.json();
+
+    if (data.errors) {
+      console.error('GraphQL errors (verify segment):', data.errors);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Failed to fetch discount details',
+        details: data.errors
+      });
+    }
+
+    const discount = data.data?.discountNode?.discount;
+    const context = discount?.context;
+
+    // 2025-10: context is union; when segment-based, context has segments { id name }
+    let segmentAssigned = false;
+    let assignedSegments = [];
+    const segments = context?.segments;
+    if (Array.isArray(segments) && segments.length > 0) {
+      segmentAssigned = true;
+      assignedSegments = segments.map((seg) => ({
+        id: seg.id,
+        name: seg.name || seg.id
+      }));
+
+      await db.collection('pricing_rules').updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            segmentAssigned: true,
+            assignedSegments: assignedSegments,
+            updatedAt: new Date()
+          }
+        }
+      );
+    }
+
+    res.json({
+      success: true,
+      segmentAssigned,
+      assignedSegments,
+      context
+    });
+  } catch (error) {
+    console.error('Error verifying segment assignment:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to verify segment assignment',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * Get customer segments from Shopify
+ */
+const getCustomerSegments = async (req, res, db) => {
+  try {
+    const { shop } = req.query;
+
+    // ✅ Only shop is required
+    if (!shop) {
+      return res.status(400).json({
+        success: false,
+        error: 'Shop parameter is required',
+      });
+    }
+
+    const accessToken = await getShopAccessToken(shop, db);
+
+    const graphqlQuery = `
+      query getSegments {
+        segments(first: 50) {
+          edges {
+            node {
+              id
+              name
+              query
+              creationDate
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(
+      `https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: graphqlQuery }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.errors) {
+      return res.status(400).json({
+        success: false,
+        error: 'GraphQL query error',
+        details: data.errors,
+      });
+    }
+
+    const segments = data.data.segments.edges.map(({ node }) => ({
+      id: node.id,
+      name: node.name,
+      query: node.query,
+      createdAt: node.creationDate,
+    }));
+
+    res.json({
+      success: true,
+      segments,
+    });
+  } catch (error) {
+    console.error('Error getting customer segments:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get customer segments',
+    });
+  }
+};
+
+
+
+
+
+
+// API version where context.customerSegments is available (2025-10+)
+const DISCOUNT_CONTEXT_API_VERSION = '2025-10';
+
+/** Extract numeric ID from any discount GID (e.g. gid://shopify/DiscountAutomaticNode/123 or gid://shopify/DiscountAutomaticBasic/123). */
+function extractDiscountNumericId(id) {
+  const str = String(id).trim();
+  const match = str.match(/\/(\d+)$/);
+  return match ? match[1] : str;
+}
+
+/** Build concrete discount GID. Update mutations require DiscountAutomaticBasic or DiscountAutomaticApp, not DiscountAutomaticNode. */
+function toDiscountGid(id, type) {
+  const str = String(id).trim();
+  const numeric = extractDiscountNumericId(id);
+  const suffix = type === 'Basic' ? 'Basic' : 'App';
+  return `gid://shopify/DiscountAutomatic${suffix}/${numeric}`;
+}
+
+/** True if this GID is a generic Node (needs trying both Basic and App) or plain numeric. */
+function isDiscountNodeOrNumeric(id) {
+  const str = String(id).trim();
+  if (!str.startsWith('gid://')) return true;
+  return str.includes('DiscountAutomaticNode') || (!str.includes('DiscountAutomaticBasic') && !str.includes('DiscountAutomaticApp'));
+}
+
+/** Run one GraphQL request and return { data, errors, userErrors from payload }. */
+async function graphqlDiscount(shop, accessToken, query, variables, operationKey) {
+  const response = await fetch(
+    `https://${shop}/admin/api/${DISCOUNT_CONTEXT_API_VERSION}/graphql.json`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    }
+  );
+  const data = await response.json();
+  const payload = data.data?.[operationKey];
+  return { data, errors: data.errors, userErrors: payload?.userErrors || [] };
+}
+
+/**
+ * Assign a customer segment to a discount
+ * Supports both DiscountAutomaticBasic (e.g. Amount off products) and DiscountAutomaticApp (function-based).
+ * Uses Admin API 2025-10 for context.customerSegments.
+ */
+/** Build minimumRequirement for 2025-10 discount input. options: { type: 'none'|'quantity'|'subtotal', quantity?, amount?, currencyCode? } */
+function buildMinimumRequirement(options) {
+  if (!options || options.type === 'none') return null;
+  if (options.type === 'quantity' && options.quantity != null) {
+    return { quantity: { greaterThanOrEqualToQuantity: String(Math.max(1, Math.floor(options.quantity))) } };
+  }
+  if (options.type === 'subtotal' && options.amount != null) {
+    return {
+      subtotal: {
+        greaterThanOrEqualToSubtotal: {
+          amount: String(Number(options.amount).toFixed(2)),
+          currencyCode: (options.currencyCode || 'GBP').toUpperCase()
+        }
+      }
+    };
+  }
+  return null;
+}
+
+/** Build combinesWith for discount input. options: { productDiscounts?, orderDiscounts?, shippingDiscounts? } booleans */
+function buildCombinesWith(options) {
+  if (!options || typeof options !== 'object') return undefined;
+  const out = {};
+  if (typeof options.productDiscounts === 'boolean') out.productDiscounts = options.productDiscounts;
+  if (typeof options.orderDiscounts === 'boolean') out.orderDiscounts = options.orderDiscounts;
+  if (typeof options.shippingDiscounts === 'boolean') out.shippingDiscounts = options.shippingDiscounts;
+  return Object.keys(out).length ? out : undefined;
+}
+
+const assignSegmentToDiscount = async (req, res, db) => {
+  try {
+    const { shop } = req.query;
+    let {
+      discountId,
+      segmentId,
+      minimumRequirement: minReqOpts,
+      combinesWith: combinesWithOpts
+    } = req.body;
+
+    if (!shop) {
+      return res.status(400).json({ error: 'Shop parameter is required' });
+    }
+
+    if (!discountId || !segmentId) {
+      return res.status(400).json({
+        error: 'Both discountId and segmentId are required'
+      });
+    }
+
+    const shopData = await db.collection('shops').findOne({ shop });
+    if (!shopData) {
+      return res.status(404).json({ error: 'Shop not found' });
+    }
+
+    const accessToken = shopData.accessToken;
+    const minimumRequirement = buildMinimumRequirement(minReqOpts);
+    const combinesWith = buildCombinesWith(combinesWithOpts);
+    const baseContext = { context: { customerSegments: { add: [segmentId] } } };
+    const basicInput = {
+      ...baseContext,
+      ...(minimumRequirement != null && { minimumRequirement }),
+      ...(combinesWith && { combinesWith })
+    };
+    const appInput = {
+      ...baseContext,
+      ...(combinesWith && { combinesWith })
+    };
+
+    // Docs: discountAutomaticAppUpdate accepts gid://shopify/DiscountAutomaticNode/123. Try Node GID as-is first, then concrete Basic/App if needed.
+    const idStr = String(discountId).trim();
+    const isNodeGid = idStr.includes('DiscountAutomaticNode');
+    const idBasic = toDiscountGid(discountId, 'Basic');
+    const idApp = toDiscountGid(discountId, 'App');
+    const idToTryBasic = isNodeGid ? discountId : (idStr.startsWith('gid://') && idStr.includes('Basic') ? discountId : idBasic);
+    const idToTryApp = isNodeGid ? discountId : (idStr.startsWith('gid://') && idStr.includes('App') ? discountId : idApp);
+
+    const runAppUpdate = async (id) => {
+      const mutation = `
+        mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+          discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+            automaticAppDiscount { discountId title }
+            userErrors { field message }
+          }
+        }
+      `;
+      return graphqlDiscount(shop, accessToken, mutation, {
+        id,
+        automaticAppDiscount: appInput
+      }, 'discountAutomaticAppUpdate');
+    };
+
+    const runBasicUpdate = async (id) => {
+      const mutation = `
+        mutation discountAutomaticBasicUpdate($id: ID!, $automaticBasicDiscount: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $automaticBasicDiscount) {
+            automaticDiscountNode { id }
+            userErrors { field message }
+          }
+        }
+      `;
+      return graphqlDiscount(shop, accessToken, mutation, {
+        id,
+        automaticBasicDiscount: basicInput
+      }, 'discountAutomaticBasicUpdate');
+    };
+
+    const hasNotFoundError = (userErrors) =>
+      userErrors.some(e => e.message && (e.message.includes('does not exist') || e.message.includes('Discount does not exist')));
+
+    /** Top-level GraphQL errors can mean "wrong type" - try other mutation. */
+    const isNotFoundOrInvalidId = (errors) =>
+      Array.isArray(errors) && errors.some(e =>
+        (e.message && (e.message.includes('Invalid id') || e.message.includes('does not exist'))) ||
+        (e.extensions && e.extensions.code === 'RESOURCE_NOT_FOUND'));
+
+    // Try Basic update first (with Node GID or Basic GID)
+    const { data: dataBasic, errors: errorsBasic, userErrors: userErrorsBasic } = await runBasicUpdate(idToTryBasic);
+    if (errorsBasic?.length && !isNotFoundOrInvalidId(errorsBasic)) {
+      return res.status(400).json({ success: false, error: `GraphQL error: ${JSON.stringify(errorsBasic)}` });
+    }
+    if (!errorsBasic?.length && userErrorsBasic.length === 0) {
+      const payload = dataBasic?.discountAutomaticBasicUpdate;
+      return res.json({ success: true, discount: payload?.automaticDiscountNode, message: 'Customer segment assigned successfully' });
+    }
+    if (errorsBasic?.length === 0 && !hasNotFoundError(userErrorsBasic)) {
+      return res.status(400).json({ success: false, error: userErrorsBasic.map(e => e.message).join(', ') });
+    }
+
+    // Basic failed (wrong type or not found) -> try App update with Node GID or App GID
+    const { data, errors, userErrors } = await runAppUpdate(idToTryApp);
+    if (errors?.length) {
+      return res.status(400).json({ success: false, error: `GraphQL error: ${JSON.stringify(errors)}` });
+    }
+    if (userErrors.length === 0) {
+      const payload = data?.discountAutomaticAppUpdate;
+      return res.json({ success: true, discount: payload?.automaticAppDiscount, message: 'Customer segment assigned successfully' });
+    }
+    return res.status(400).json({ success: false, error: userErrors.map(e => e.message).join(', ') });
+  } catch (error) {
+    console.error('Error assigning segment to discount:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Remove a customer segment from a discount (syncs to store discount).
+ * Uses Shopify context.customerSegments.remove (Admin API 2025-10).
+ */
+const removeSegmentFromDiscount = async (req, res, db) => {
+  try {
+    const { shop } = req.query;
+    const { discountId, segmentId } = req.body || {};
+
+    console.log('[App → Store] Remove segment: request', { shop, discountId, segmentId });
+
+    if (!shop) {
+      return res.status(400).json({ error: 'Shop parameter is required' });
+    }
+
+    if (!discountId || !segmentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both discountId and segmentId are required'
+      });
+    }
+
+    const shopData = await db.collection('shops').findOne({ shop });
+    if (!shopData) {
+      return res.status(404).json({ success: false, error: 'Shop not found' });
+    }
+
+    const accessToken = shopData.accessToken;
+    const baseContext = { context: { customerSegments: { remove: [segmentId] } } };
+
+    const idStr = String(discountId).trim();
+    const isNodeGid = idStr.includes('DiscountAutomaticNode');
+    const idBasic = toDiscountGid(discountId, 'Basic');
+    const idApp = toDiscountGid(discountId, 'App');
+    const idToTryBasic = isNodeGid ? discountId : (idStr.startsWith('gid://') && idStr.includes('Basic') ? discountId : idBasic);
+    const idToTryApp = isNodeGid ? discountId : (idStr.startsWith('gid://') && idStr.includes('App') ? discountId : idApp);
+
+    const runAppUpdate = async (id) => {
+      const mutation = `
+        mutation discountAutomaticAppUpdate($id: ID!, $automaticAppDiscount: DiscountAutomaticAppInput!) {
+          discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $automaticAppDiscount) {
+            automaticAppDiscount { discountId title }
+            userErrors { field message }
+          }
+        }
+      `;
+      return graphqlDiscount(shop, accessToken, mutation, {
+        id,
+        automaticAppDiscount: baseContext
+      }, 'discountAutomaticAppUpdate');
+    };
+
+    const runBasicUpdate = async (id) => {
+      const mutation = `
+        mutation discountAutomaticBasicUpdate($id: ID!, $automaticBasicDiscount: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $automaticBasicDiscount) {
+            automaticDiscountNode { id }
+            userErrors { field message }
+          }
+        }
+      `;
+      return graphqlDiscount(shop, accessToken, mutation, {
+        id,
+        automaticBasicDiscount: baseContext
+      }, 'discountAutomaticBasicUpdate');
+    };
+
+    const hasNotFoundError = (userErrors) =>
+      userErrors.some(e => e.message && (e.message.includes('does not exist') || e.message.includes('Discount does not exist')));
+    const isNotFoundOrInvalidId = (errors) =>
+      Array.isArray(errors) && errors.some(e =>
+        (e.message && (e.message.includes('Invalid id') || e.message.includes('does not exist'))) ||
+        (e.extensions && e.extensions.code === 'RESOURCE_NOT_FOUND'));
+
+    const { data: dataBasic, errors: errorsBasic, userErrors: userErrorsBasic } = await runBasicUpdate(idToTryBasic);
+    if (errorsBasic?.length && !isNotFoundOrInvalidId(errorsBasic)) {
+      console.log('[App → Store] Remove segment: failed (GraphQL)', errorsBasic);
+      return res.status(400).json({ success: false, error: `GraphQL error: ${JSON.stringify(errorsBasic)}` });
+    }
+    if (!errorsBasic?.length && userErrorsBasic.length === 0) {
+      console.log('[App → Store] Remove segment: success — segment removed in app and store discount');
+      return res.json({ success: true, message: 'Customer segment removed from discount' });
+    }
+    if (errorsBasic?.length === 0 && !hasNotFoundError(userErrorsBasic)) {
+      console.log('[App → Store] Remove segment: failed (userErrors)', userErrorsBasic);
+      return res.status(400).json({ success: false, error: userErrorsBasic.map(e => e.message).join(', ') });
+    }
+
+    const { data, errors, userErrors } = await runAppUpdate(idToTryApp);
+    if (errors?.length) {
+      console.log('[App → Store] Remove segment: failed (GraphQL)', errors);
+      return res.status(400).json({ success: false, error: `GraphQL error: ${JSON.stringify(errors)}` });
+    }
+    if (userErrors.length === 0) {
+      console.log('[App → Store] Remove segment: success — segment removed in app and store discount');
+      return res.json({ success: true, message: 'Customer segment removed from discount' });
+    }
+    console.log('[App → Store] Remove segment: failed (userErrors)', userErrors);
+    return res.status(400).json({ success: false, error: userErrors.map(e => e.message).join(', ') });
+  } catch (error) {
+    console.error('[App → Store] Remove segment: error', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
 module.exports = {
   // Pricing Rules CRUD
   getPricingRules,
@@ -2299,5 +3623,14 @@ module.exports = {
   syncPricingRulesMetafields,
   
   // Storefront API
-  getStorefrontPricingRules
+  getStorefrontPricingRules,
+
+  // segment API
+  verifySegmentAssignment,
+  getCustomerSegments,
+  assignSegmentToDiscount,
+  removeSegmentFromDiscount,
+
+  getDiscountProductsFromShopify,
+  updateRuleProducts
 };

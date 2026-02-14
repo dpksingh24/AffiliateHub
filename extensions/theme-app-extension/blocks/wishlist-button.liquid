@@ -1,0 +1,112 @@
+{% comment %}
+  Ki Science Wishlist Button – add this block to your product section (e.g. main product section)
+  so logged-in customers can add the product to their wishlist. Data is saved to our server
+  (customer_wishlists) and syncs across devices. The same list appears in the dashboard Wish list tab.
+{% endcomment %}
+{% if customer %}
+  <div class="ks-wishlist-button-wrap" data-kiscience-wishlist>
+    <button
+      type="button"
+      class="ks-wishlist-btn ks-wishlist-btn--add"
+      data-product-id="{{ product.id }}"
+      data-shop="{{ shop.permanent_domain }}"
+      data-customer-id="{{ customer.id }}"
+      data-api-base="{{ shop.metafields.kiscience.app_proxy_url | default: '/apps/kiscience' }}"
+      aria-label="Add to wishlist"
+    >
+      <span class="ks-wishlist-btn__icon" aria-hidden="true">♡</span>
+      <span class="ks-wishlist-btn__label">{{ block.settings.button_text | default: 'Add to wishlist' }}</span>
+    </button>
+    <p class="ks-wishlist-btn__feedback" data-feedback style="display: none;"></p>
+  </div>
+  <style>
+    .ks-wishlist-button-wrap { margin: 12px 0; }
+    .ks-wishlist-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .ks-wishlist-btn:hover { background: #eee; border-color: #ccc; }
+    .ks-wishlist-btn__icon { font-size: 18px; }
+    .ks-wishlist-btn__feedback { margin: 8px 0 0 0; font-size: 13px; color: #059669; }
+    .ks-wishlist-btn__feedback.is-error { color: #dc2626; }
+  </style>
+  <script>
+    (function() {
+      var wrap = document.querySelector('[data-kiscience-wishlist]');
+      if (!wrap) return;
+      var btn = wrap.querySelector('.ks-wishlist-btn');
+      var feedback = wrap.querySelector('[data-feedback]');
+      var apiBase = (btn.getAttribute('data-api-base') || '/apps/kiscience').replace(/\/$/, '');
+      var productId = btn.getAttribute('data-product-id');
+      var shop = btn.getAttribute('data-shop');
+      var customerId = btn.getAttribute('data-customer-id');
+      function showFeedback(msg, isError) {
+        feedback.textContent = msg;
+        feedback.style.display = 'block';
+        feedback.classList.toggle('is-error', !!isError);
+        setTimeout(function() { feedback.style.display = 'none'; }, 3000);
+      }
+      btn.addEventListener('click', function() {
+        if (!productId || !shop || !customerId) {
+          showFeedback('Cannot add to wishlist. Missing data.', true);
+          return;
+        }
+        btn.disabled = true;
+        fetch(apiBase + '/api/customers/wishlist', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ shop: shop, customerId: customerId, productId: String(productId) })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.success) {
+              showFeedback('Added to wishlist');
+              btn.querySelector('.ks-wishlist-btn__icon').textContent = '♥';
+              btn.classList.add('ks-wishlist-btn--added');
+              try { window.dispatchEvent(new CustomEvent('kiscience:wishlist-updated')); } catch (err) {}
+            } else {
+              showFeedback(data.error || 'Could not add to wishlist', true);
+            }
+          })
+          .catch(function() { showFeedback('Could not add to wishlist', true); })
+          .finally(function() { btn.disabled = false; });
+      });
+    })();
+  </script>
+{% else %}
+  <p class="ks-wishlist-login-hint">{{ block.settings.login_hint | default: 'Log in to add products to your wishlist.' }}</p>
+  <style>
+    .ks-wishlist-login-hint { margin: 12px 0; font-size: 14px; color: #6b7280; }
+  </style>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Wishlist button",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button label",
+      "default": "Add to wishlist"
+    },
+    {
+      "type": "text",
+      "id": "login_hint",
+      "label": "Message when not logged in",
+      "default": "Log in to add products to your wishlist."
+    }
+  ]
+}
+{% endschema %}

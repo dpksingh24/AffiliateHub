@@ -1,0 +1,26 @@
+{% comment %}
+  Practitioner Dashboard – single-script embed
+  Enable in Theme Editor: App embeds → Dashboard (kiscience).
+  On any Liquid template where you want the dashboard, add:
+    <div id="ks-dashboard-root"></div>
+  The embed loads a small bootstrap script that injects the full dashboard there.
+{% endcomment %}
+<script id="ks-dashboard-embed-config" type="application/json">
+{
+  "cssUrl": "{{ 'customer-dashboard.css' | asset_url }}",
+  "jsUrl": "{{ 'affiliate-dashboard.js' | asset_url }}",
+  "invoiceLogoUrl": "{{ 'ki_logo.png' | asset_url }}",
+  "invoiceCompanyName": "Ki Science Limited",
+  "invoiceCompanyAddress": "14 Hunns Mere Way, Brighton, BN2 6AH. UK.",
+  "invoiceVat": "GB 273 0155 27",
+  "invoiceTermsUrl": "https://www.kiscience.com/website-terms-conditions/"
+}
+</script>
+<script src="{{ 'dashboard-embed.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Dashboard",
+  "target": "body"
+}
+{% endschema %}

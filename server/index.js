@@ -16,6 +16,8 @@ const {
   handleShopRedact 
 } = require('./utils/gdprWebhooks');
 const createFormRoutes = require('./routes/formRoutes');
+const createAdminRoutes = require('./routes/adminRoutes');
+const createCustomerRoutes = require('./routes/customerRoutes');
 require('dotenv').config({ path: '../.env' });
 
 let fetch;
@@ -73,9 +75,9 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'ngrok-skip-browser-warning']
 }));
-// Skip body parsers for multipart/form-data requests (let Multer handle them)
+// Skip body parsers for multipart/form-data and webhook requests (let their own middleware handle them)
 app.use((req, res, next) => {
-  if (req.is('multipart/form-data')) {
+  if (req.is('multipart/form-data') || req.path === '/webhooks' || req.path === '/webhooks/app/uninstalled') {
     return next();
   }
   express.json()(req, res, next);
@@ -87,6 +89,15 @@ app.use((req, res, next) => {
   express.urlencoded({ extended: true })(req, res, next);
 });
 app.use(cookieParser());
+
+// App proxy path fix: Shopify appends path to proxy URL, so we get /api/api/... instead of /api/...
+// Rewrite so /api/api/* is handled as /api/* (proxy URL is .../api, path is /api/customers/...)
+app.use((req, res, next) => {
+  if (req.path.indexOf('/api/api/') === 0) {
+    req.url = req.url.replace(/^\/api\/api/, '/api');
+  }
+  next();
+});
 
 // Serve uploaded files statically with proper MIME types and CORS headers
 app.use('/uploads', (req, res, next) => {
@@ -114,6 +125,29 @@ app.use('/uploads', (req, res, next) => {
     }
   }
 }));
+
+// Email logo as PNG (Outlook and many clients don't support WebP)
+const sharp = require('sharp');
+const fs = require('fs');
+app.get('/assets/images/ki_logo.png', (req, res) => {
+  const webpPath = path.join(__dirname, 'assets', 'images', 'ki_logo.png');
+  if (!fs.existsSync(webpPath)) {
+    return res.status(404).send('Logo not found');
+  }
+  fs.readFile(webpPath, (err, buffer) => {
+    if (err) return res.status(500).send('Error reading logo');
+    sharp(buffer)
+      .png()
+      .toBuffer()
+      .then((pngBuffer) => {
+        res.type('image/png').send(pngBuffer);
+      })
+      .catch((e) => res.status(500).send('Error converting logo'));
+  });
+});
+
+// Email assets (e.g. logo) - public URL needed for email clients like Gmail
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(session({
   secret: process.env.SHOPIFY_API_SECRET,
   resave: false,
@@ -151,12 +185,121 @@ const connectDB = async () => {
     mongoClient = new MongoClient(dbUrl);
     await mongoClient.connect();
     db = mongoClient.db(process.env.DB_NAME);
+    // Prevent duplicate referral conversions at DB level (unique index on orderId)
+    try {
+      await db.collection('referral_conversions').createIndex({ orderId: 1 }, { unique: true });
+      console.log('Referral conversions unique index on orderId ensured');
+    } catch (idxErr) {
+      if (idxErr.code === 85) console.warn('Referral conversions index already exists');
+      else if (idxErr.code === 86) console.warn('Referral conversions: unique index not created (duplicate orderIds in collection). Remove duplicates and restart to enforce index.');
+      else console.warn('Referral conversions index create:', idxErr.message);
+    }
     console.log('Connected to MongoDB');
     
-    // Register API routes (pricing, admin customer)
+    // Register Form Builder API routes
     const formRoutes = createFormRoutes(db);
     app.use('/api', formRoutes);
-    console.log('API routes registered');
+    console.log('Form Builder API routes registered');
+
+    // Register Admin API routes
+    const adminRoutes = createAdminRoutes(db);
+    app.use('/api/admin', adminRoutes);
+    console.log('Admin API routes registered');
+
+    // Register Customer API routes (storefront Account Details)
+    const customerRoutes = createCustomerRoutes(db);
+    app.use('/api/customers', customerRoutes);
+    console.log('Customer API routes registered');
+
+  // Referral link redirect route - handles /ref=SHORTCODE format
+  app.get(/^\/ref=(.+)$/, async (req, res) => {
+    try {
+      // Extract shortCode from URL path (format: /ref=SHORTCODE)
+      const pathMatch = req.path.match(/^\/ref=(.+)$/);
+      const shortCode = pathMatch ? pathMatch[1] : null;
+      const { shop } = req.query; // Optional shop parameter for redirect
+
+      if (!shortCode) {
+        return res.status(400).json({ error: 'Referral code is required' });
+      }
+
+      // Check if database is available
+      if (!db) {
+        console.error('Database not connected yet');
+        return res.status(503).json({ error: 'Database not available. Please try again in a moment.' });
+      }
+
+      // Find affiliate by referral link shortCode
+      const affiliate = await db.collection('affiliates').findOne({
+        'referralLinks.shortCode': shortCode
+      });
+
+      if (!affiliate) {
+        return res.status(404).json({ error: 'Invalid referral code' });
+      }
+
+      // Replaced links must not redirect or track – only the current primary (active) link works
+      const link = (affiliate.referralLinks || []).find((l) => l.shortCode === shortCode);
+      if (link && (link.status || '').toLowerCase() === 'replaced') {
+        return res.status(410).json({
+          error: 'This referral link is no longer active',
+          message: 'The affiliate has created a new link. Please use their current referral link.'
+        });
+      }
+
+      const { trackReferralClick } = require('./models/affiliate.model');
+      const { getClientIp } = require('./utils/requestUtils');
+      const metadata = {
+        ipAddress: getClientIp(req) || req.ip || req.connection?.remoteAddress,
+        userAgent: req.headers['user-agent'],
+        referrer: req.headers['referer']?.trim() || 'Referral link'
+      };
+
+      let visitId = null;
+      try {
+        visitId = await trackReferralClick(db, shortCode, metadata);
+      } catch (trackError) {
+        console.error('Error tracking click:', trackError);
+      }
+
+      // Determine store URL
+      let storeUrl;
+      if (shop) {
+        // Use shop parameter if provided
+        storeUrl = `https://${shop}`;
+      } else if (affiliate.shop) {
+        // Use shop from affiliate record
+        const shopDomain = affiliate.shop.includes('.myshopify.com')
+          ? affiliate.shop
+          : `${affiliate.shop}.myshopify.com`;
+        storeUrl = `https://${shopDomain}`;
+      } else {
+        // Fallback to a default store URL or return error
+        return res.status(400).json({ error: 'Unable to determine store URL' });
+      }
+
+      const cartVariantPath = req.query.cart;
+      const discountCode = typeof req.query.discount === 'string' ? req.query.discount.trim() : '';
+      const visitParam = visitId ? '&visitId=' + encodeURIComponent(visitId) : '';
+      const discountParam = discountCode ? '&discount=' + encodeURIComponent(discountCode) : '';
+      if (cartVariantPath && typeof cartVariantPath === 'string' && /^[\d,:]+$/.test(cartVariantPath)) {
+        const homeUrl = `${storeUrl}?ref=${encodeURIComponent(shortCode)}&cart=${encodeURIComponent(cartVariantPath)}&utm_source=affiliate_share&utm_medium=cart_share${visitParam}${discountParam}`;
+        return res.redirect(homeUrl);
+      }
+
+      const referralUrl = `${storeUrl}?ref=${encodeURIComponent(shortCode)}&utm_source=affiliate&utm_medium=referral${visitParam}${discountParam}`;
+      res.redirect(referralUrl);
+    } catch (error) {
+      console.error('Error processing referral link:', error);
+      res.status(500).json({ error: 'Failed to process referral link', message: error.message });
+    }
+  });
+
+  // Register Affiliate API routes
+  const createAffiliateRoutes = require('./routes/affiliateRoutes');
+  const affiliateRoutes = createAffiliateRoutes(db);
+  app.use('/api/affiliates', affiliateRoutes);
+  console.log('Affiliate API routes registered');
 
     app.use((err, req, res, next) => {
       // Handle Multer (file upload) errors gracefully with JSON
@@ -247,7 +390,7 @@ app.get('/', (req, res) => {
   }
   
   // Fallback if React app not built
-  res.json({ message: 'affiliatehub Shopify App API - Please build the client app' });
+  res.json({ message: 'kiscience Shopify App API - Please build the client app' });
 });
 
 // Installation page route
@@ -343,6 +486,13 @@ app.get('/auth/callback', async (req, res) => {
       console.error('Database operation failed:', dbError);
       throw new Error(`Failed to save shop data: ${dbError.message}`);
     }
+
+    // Register required webhooks for this shop (orders/create)
+    try {
+      await registerWebhooksForShop(shop, tokenData.access_token);
+    } catch (e) {
+      console.warn('Webhook registration attempt failed:', e.message || e);
+    }
     
     // Verify the installation was saved
     try {
@@ -366,6 +516,47 @@ app.get('/auth/callback', async (req, res) => {
     });
   }
 });
+
+// Register standard webhooks after installation: orders/create
+const registerWebhooksForShop = async (shop, accessToken) => {
+  try {
+    if (!shop || !accessToken) return;
+
+    const webhookUrl = normalizeUrl(process.env.HOST, '/webhooks');
+    const topics = [ 'orders/create' ];
+
+    for (const topic of topics) {
+      try {
+        // Create webhook subscription via Admin API
+        const resp = await fetch(`https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/webhooks.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken
+          },
+          body: JSON.stringify({
+            webhook: {
+              topic,
+              address: webhookUrl,
+              format: 'json'
+            }
+          })
+        });
+
+        if (!resp.ok) {
+          const body = await resp.text();
+          console.warn(`Webhook registration for ${topic} returned ${resp.status}: ${body}`);
+        } else {
+          console.log(`Registered webhook ${topic} for shop ${shop}`);
+        }
+      } catch (e) {
+        console.error(`Failed to register webhook ${topic} for ${shop}:`, e.message || e);
+      }
+    }
+  } catch (e) {
+    console.error('registerWebhooksForShop error:', e.message || e);
+  }
+};
 
 // App installation verification
 app.get('/api/verify-installation', async (req, res) => {
@@ -417,6 +608,179 @@ app.post('/webhooks',
           break;
         case 'customers/redact':
           await handleCustomerRedact(req, res, db);
+          break;
+        case 'orders/create':
+          // Handle order creation webhook to track affiliate conversions
+          try {
+            const order = req.body && req.body.order ? req.body.order : req.body;
+
+            const shopifyOrderId = order.id || order.order_id || order.shopify_order_id || null;
+            const orderName = order.name || order.order_number || null;
+            let amount = parseFloat(order.total_price || order.total || 0) || 0;
+            const currency = order.currency || order.currency_code || (order.total_price_currency || 'USD');
+
+            // If cart had affiliate_attributed_variants (shared-cart flow), commission on attributed product total + proportional shipping & tax (so total order value for attributed share)
+            const noteAttrs = Array.isArray(order.note_attributes) ? order.note_attributes : [];
+            const attributedAttr = noteAttrs.find(n => (n.name || '').toLowerCase() === 'affiliate_attributed_variants');
+            let attributedProductNames = null;
+            if (attributedAttr && attributedAttr.value && typeof attributedAttr.value === 'string') {
+              const attributed = {};
+              attributedAttr.value.split(',').forEach(part => {
+                const [vid, q] = part.split(':').map(s => (s || '').trim());
+                if (vid && q) attributed[vid] = (attributed[vid] || 0) + parseInt(q, 10);
+              });
+              let attributedLineTotal = 0;
+              const names = [];
+              (order.line_items || []).forEach(item => {
+                const vid = String(item.variant_id || '');
+                if (attributed[vid]) {
+                  const take = Math.min(Number(item.quantity) || 0, attributed[vid]);
+                  attributedLineTotal += (parseFloat(item.price) || 0) * take;
+                  if (take > 0 && (item.title || '').trim()) names.push((item.title || '').trim());
+                  attributed[vid] -= take;
+                }
+              });
+              if (attributedLineTotal > 0) {
+                const subtotal = parseFloat(order.subtotal_price || 0) || 0;
+                let shipping = parseFloat(order.total_shipping_price || 0) || 0;
+                if (shipping === 0 && order.total_shipping_price_set && order.total_shipping_price_set.shop_money) {
+                  shipping = parseFloat(order.total_shipping_price_set.shop_money.amount || 0) || 0;
+                }
+                if (shipping === 0 && Array.isArray(order.shipping_lines) && order.shipping_lines.length > 0) {
+                  shipping = order.shipping_lines.reduce((sum, s) => sum + (parseFloat(s.price || 0) || 0), 0);
+                }
+                let tax = parseFloat(order.total_tax || 0) || 0;
+                if (tax === 0 && order.total_tax_set && order.total_tax_set.shop_money) {
+                  tax = parseFloat(order.total_tax_set.shop_money.amount || 0) || 0;
+                }
+                const ratio = subtotal > 0 ? attributedLineTotal / subtotal : 1;
+                const attributedAmount = attributedLineTotal + (shipping * ratio) + (tax * ratio);
+                amount = Math.round(attributedAmount * 100) / 100;
+                attributedProductNames = names.length ? names : null;
+              }
+            }
+
+            // Determine affiliate shortCode from multiple possible locations
+            // (Cart attributes may not appear in order webhook; landing_site is reliable for share links.)
+            let shortCode = null;
+
+            // 1) Check landing_site first — most reliable when customer used share link (ref in URL)
+            if (!shortCode && typeof order.landing_site === 'string') {
+              try {
+                // Store URL: ?ref=SHORTCODE (query) or path /?ref=SHORTCODE
+                const base = `https://${req.shopDomain || 'store.myshopify.com'}`;
+                const url = new URL(order.landing_site, base);
+                shortCode = url.searchParams.get('ref') || url.searchParams.get('affiliate') || shortCode;
+                // App redirect URL: first page may be our app path e.g. /ref=SHORTCODE or /ref=SHORTCODE?cart=...
+                if (!shortCode && /\/ref=/.test(order.landing_site)) {
+                  const pathMatch = order.landing_site.match(/\/ref=([^/?&#]+)/);
+                  if (pathMatch) shortCode = pathMatch[1];
+                }
+              } catch (e) {
+                // Fallback: extract ref= from path (app-style URL)
+                if (!shortCode && /\/ref=/.test(order.landing_site)) {
+                  const pathMatch = order.landing_site.match(/\/ref=([^/?&#]+)/);
+                  if (pathMatch) shortCode = pathMatch[1];
+                }
+              }
+            }
+
+            // 2) Check note_attributes (cart/order attributes)
+            if (!shortCode && Array.isArray(order.note_attributes)) {
+              const found = order.note_attributes.find(n => (n.name || '').toLowerCase() === 'affiliate' || (n.name || '').toLowerCase() === 'ref');
+              if (found) shortCode = found.value;
+            }
+
+            // 3) Check attributes object
+            if (!shortCode && order.attributes) {
+              if (Array.isArray(order.attributes)) {
+                const f = order.attributes.find(a => (a.name || '').toLowerCase() === 'affiliate' || (a.name || '').toLowerCase() === 'ref');
+                if (f) shortCode = f.value || f;
+              } else if (typeof order.attributes === 'object') {
+                shortCode = order.attributes.affiliate || order.attributes.ref || shortCode;
+              }
+            }
+
+            // 4) Check tags for affiliate:<code>
+            if (!shortCode && typeof order.tags === 'string') {
+              const match = order.tags.match(/affiliate:([A-Za-z0-9]+)/i);
+              if (match) shortCode = match[1];
+            }
+
+            if (!shortCode) {
+              // Debug: log what we received so we can fix attribution
+              const noteAttrs = Array.isArray(order.note_attributes) ? order.note_attributes : [];
+              console.log('orders/create webhook: no affiliate shortCode found for order', shopifyOrderId || orderName, 'landing_site=', typeof order.landing_site === 'string' ? order.landing_site : order.landing_site, 'note_attributes_count=', noteAttrs.length, 'note_attributes_sample=', JSON.stringify(noteAttrs.slice(0, 10)), 'shopDomain=', req.shopDomain);
+              res.status(200).send();
+              break;
+            }
+
+            // Idempotency: don't record the same order twice
+            const existing = await db.collection('referral_conversions').findOne({ orderId: String(shopifyOrderId || orderName) });
+            if (existing) {
+              console.log('orders/create webhook: conversion already recorded for order', shopifyOrderId || orderName);
+              res.status(200).send();
+              break;
+            }
+
+            const addr = order.shipping_address || order.billing_address || {};
+            const customerName = [addr.first_name, addr.last_name].filter(Boolean).join(' ') || (order.customer && [order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ')) || '';
+            const customerEmail = order.email || order.customer?.email || '';
+            const customerPhone = addr.phone || (order.billing_address && order.billing_address.phone) || '';
+
+            let visitId = null;
+            if (Array.isArray(order.note_attributes)) {
+              const visitAttr = order.note_attributes.find(n => (n.name || '').toLowerCase() === 'affiliate_visit_id');
+              if (visitAttr && visitAttr.value) visitId = String(visitAttr.value);
+            }
+            if (!visitId && Array.isArray(order.note_attributes)) {
+              console.log('orders/create webhook: no affiliate_visit_id in order – note_attributes sample:', JSON.stringify((order.note_attributes || []).slice(0, 15)));
+            }
+            const productNames = attributedProductNames || (order.line_items || []).map(item => (item.title || '').trim()).filter(Boolean);
+
+            const orderDisplay = order.name || (order.order_number != null ? '#' + order.order_number : '');
+            const { trackReferralConversion } = require('./models/affiliate.model');
+            const result = await trackReferralConversion(db, shortCode, {
+              orderId: String(shopifyOrderId || orderName),
+              orderDisplay: orderDisplay ? String(orderDisplay).trim() : undefined,
+              amount,
+              currency,
+              customerEmail: customerEmail || undefined,
+              customerName: customerName || undefined,
+              customerPhone: customerPhone || undefined,
+              visitId: visitId || undefined,
+              productNames: productNames.length ? productNames : undefined
+            });
+
+            if (result && result.inserted && result.affiliate && result.affiliate.email && result.affiliate.settings?.enableNewReferralNotifications) {
+              try {
+                const EmailService = require('./services/email.services');
+                await EmailService.sendNewReferralNotificationToAffiliate(result.affiliate.email, {
+                  affiliateName: result.affiliate.name || 'Affiliate',
+                  orderDisplay: orderDisplay || String(shopifyOrderId || orderName),
+                  amount,
+                  currency,
+                  commissionAmount: result.commissionAmount
+                });
+              } catch (emailErr) {
+                console.error('orders/create webhook: failed to send new referral notification email:', emailErr);
+              }
+            }
+
+            if (result && result.inserted) {
+              console.log('orders/create webhook: tracked conversion for affiliate', shortCode, 'order', shopifyOrderId || orderName, 'amount', amount);
+            } else if (result && result.reason === 'self_referral') {
+              console.log('orders/create webhook: skipped conversion (self-referral: purchaser is the same as affiliate) for affiliate', shortCode, 'order', shopifyOrderId || orderName);
+            } else if (result && result.reason === 'duplicate') {
+              console.log('orders/create webhook: conversion already recorded for order', shopifyOrderId || orderName);
+            } else {
+              console.log('orders/create webhook: conversion not recorded for order', shopifyOrderId || orderName);
+            }
+            res.status(200).send();
+          } catch (err) {
+            console.error('orders/create webhook handler error:', err);
+            res.status(500).send();
+          }
           break;
         case 'shop/redact':
           await handleShopRedact(req, res, db);

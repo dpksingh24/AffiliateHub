@@ -12,7 +12,7 @@ const LoadingSpinner = () => {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
         <Spinner size="large" />
         <Text variant="bodyMd" as="p" color="subdued">
-          Loading affiliatehub App...
+          Loading kiscience App...
         </Text>
       </div>
     </div>

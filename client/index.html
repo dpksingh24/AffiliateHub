@@ -1,88 +1,12 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>affiliatehub - Shopify App</title>
-    <meta name="description" content="Custom Shopify app for affiliatehub" />
-    <!-- ngrok bypass: Set custom user agent via meta (alternative method) -->
-    <meta http-equiv="X-ngrok-skip-browser-warning" content="true" />
-    <script>
-      // Auto-click ngrok warning bypass - runs immediately when page loads
-      (function() {
-        function tryClickButton() {
-          // Try multiple selectors to find the "Visit Site" button
-          const selectors = [
-            'button',
-            'a[role="button"]',
-            '[class*="button"]',
-            '[id*="button"]',
-            '[onclick]',
-            'input[type="button"]',
-            'input[type="submit"]'
-          ];
-          
-          for (const selector of selectors) {
-            const buttons = document.querySelectorAll(selector);
-            for (const btn of buttons) {
-              const text = (btn.textContent || btn.value || '').toLowerCase();
-              if (text.includes('visit') || text.includes('continue') || text.includes('proceed')) {
-                console.log('Found ngrok button, clicking...', btn);
-                btn.click();
-                return true;
-              }
-            }
-          }
-          
-          // Try to find button by purple color (ngrok's primary button style)
-          const purpleButtons = document.querySelectorAll('button, a');
-          for (const btn of purpleButtons) {
-            const style = window.getComputedStyle(btn);
-            if (style.backgroundColor.includes('rgb') || btn.style.backgroundColor) {
-              const bgColor = style.backgroundColor || btn.style.backgroundColor;
-              if (bgColor.includes('75') || bgColor.includes('117') || bgColor.includes('139')) {
-                // Purple-ish color
-                const text = (btn.textContent || '').toLowerCase();
-                if (text.includes('visit') || text.length < 20) {
-                  console.log('Found purple button, clicking...', btn);
-                  btn.click();
-                  return true;
-                }
-              }
-            }
-          }
-          
-          return false;
-        }
-        
-        // Try immediately
-        if (tryClickButton()) {
-          return;
-        }
-        
-        // Try after DOM is ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(tryClickButton, 50);
-            setTimeout(tryClickButton, 200);
-            setTimeout(tryClickButton, 500);
-          });
-        } else {
-          setTimeout(tryClickButton, 50);
-          setTimeout(tryClickButton, 200);
-          setTimeout(tryClickButton, 500);
-        }
-        
-        // Also try on any click event (user might click somewhere)
-        document.addEventListener('click', function() {
-          setTimeout(tryClickButton, 100);
-        }, true);
-      })();
-    </script>
+    <title>AffiliateHub - Shopify App</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/main.jsx"></script>
   </body>
 </html>

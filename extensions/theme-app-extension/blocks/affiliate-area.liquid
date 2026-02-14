@@ -1,0 +1,208 @@
+{% comment %}
+  Affiliate Area – dedicated page at /pages/affiliate-area
+  Add this section to your affiliate-area page. Uses affiliate-area.js for tab switching.
+{% endcomment %}
+
+<div id="affiliate-area-error" class="ks-error-state" style="display: none;">
+  <div class="ks-error-state__card">
+    <div class="ks-error-state__icon" aria-hidden="true">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <h2 class="ks-error-state__title">Access Denied</h2>
+    <p id="affiliate-area-error-message" class="ks-error-state__message">
+      You don't have access to this area. Please ensure you're logged in as an affiliate.
+    </p>
+    <a href="/account" class="ks-error-state__btn ks-btn">Back to Login Page</a>
+  </div>
+</div>
+
+<div class="ks-affiliate-area ks-dashboard" id="affiliate-area-container">
+  <!-- Mobile header with hamburger (visible on small screens only) -->
+  <header class="ks-affiliate-area__mobile-header">
+    <button type="button" class="ks-affiliate-area__hamburger" id="affiliate-area-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="affiliate-area-sidebar">
+      <span class="ks-affiliate-area__hamburger-line"></span>
+      <span class="ks-affiliate-area__hamburger-line"></span>
+      <span class="ks-affiliate-area__hamburger-line"></span>
+    </button>
+    <span class="ks-affiliate-area__mobile-title">Affiliate Area</span>
+  </header>
+  <!-- Backdrop when nav is open (mobile) -->
+  <div class="ks-affiliate-area__nav-backdrop" id="affiliate-area-nav-backdrop"></div>
+  <!-- Left sidebar: profile + vertical nav (same layout as Practitioner Dashboard) -->
+  <aside class="ks-sidebar" id="affiliate-area-sidebar" role="navigation" aria-label="Affiliate area sections">
+    <div class="ks-sidebar__profile">
+      <h3 class="ks-sidebar__name" id="affiliate-area-sidebar-name"></h3>
+      <p class="ks-sidebar__email" id="affiliate-area-sidebar-email"></p>
+      <span class="ks-sidebar__badge">Affiliate</span>
+    </div>
+    <nav class="ks-tabs" role="tablist" aria-label="Affiliate area sections">
+      <button type="button" class="ks-tab active" role="tab" data-tab="affiliate-urls" aria-selected="true"><span class="ks-tab__icon"></span><span class="ks-tab__label">Dashboard</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="statistics" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Statistics</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="graphs" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Graphs</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="referrals" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Referrals</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="payouts" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Payouts</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="visits" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Visits</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="settings" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Settings</span></button>
+      <button type="button" class="ks-tab" role="tab" data-tab="lifetime-customers" aria-selected="false"><span class="ks-tab__icon"></span><span class="ks-tab__label">Lifetime Customers</span></button>
+    </nav>
+    <div class="ks-sidebar__footer">
+      <p class="ks-sidebar__brand">Ki Science</p>
+      <p class="ks-sidebar__contact">Phone: <strong>+44 (0) 1273 911789</strong></p>
+      <p class="ks-sidebar__contact">Email: info@kiscience.com</p>
+      <a href="/account/logout" class="ks-sidebar__logout">Log out</a>
+    </div>
+  </aside>
+
+  <!-- Right content: welcome + tab panels -->
+  <div class="ks-dashboard-main">
+    <div class="ks-affiliate-area__welcome">
+      <p class="ks-affiliate-area__greeting">Dear Affiliate,</p>
+      <div id="affiliate-area-greeting-message"></div>
+    </div>
+
+  <section class="ks-tab-content active" id="affiliate-urls" role="tabpanel">
+    <h3 class="ks-section-title">Dashboard</h3>
+    <p>Your referral links and tracking URLs. Share these to earn commissions.</p>
+    <div id="affiliate-area-primary-referral-link">
+      <div class="ks-loader" aria-hidden="true"></div>
+    </div>
+    <div id="affiliate-area-share-cart-builder" class="ks-share-cart-builder" style="display: none;">
+      <h4 class="ks-subtitle">Create Share Cart URL</h4>
+      <p class="ks-share-cart-builder__intro">Search for products, add them below, and generate a share link that pre-fills the cart. Same base as your referral URL with an extra <code>cart=</code> parameter.</p>
+      <div class="ks-share-cart-builder__search" role="search" aria-label="Add products to share cart">
+        <label for="affiliate-area-product-search" class="ks-share-cart-builder__search-label">Add products to share link</label>
+        <div class="ks-share-cart-builder__search-inner">
+          <input type="search" id="affiliate-area-product-search" class="ks-share-cart-builder__input" placeholder="Search by product name…" autocomplete="off" aria-label="Search products" aria-autocomplete="list" aria-controls="affiliate-area-search-results" aria-expanded="false">
+          <button type="button" id="affiliate-area-search-clear-btn" class="ks-share-cart-builder__clear-btn" aria-label="Clear search" title="Clear" style="display: none;">×</button>
+          <span id="affiliate-area-search-loading" class="ks-share-cart-builder__search-loading" aria-hidden="true" style="display: none;">Searching…</span>
+        </div>
+        <div id="affiliate-area-search-results" class="ks-share-cart-builder__results" aria-live="polite" aria-label="Search results"></div>
+      </div>
+      <div class="ks-share-cart-builder__selected">
+        <h5 class="ks-share-cart-builder__selected-title">Selected for share link</h5>
+        <ul id="affiliate-area-selected-products" class="ks-share-cart-builder__list" aria-label="Products to include in share cart"></ul>
+        <div id="affiliate-area-share-cart-actions" class="ks-share-cart-builder__actions" style="display: none;">
+          <button style="background: linear-gradient(145deg, #36406f 0%, #384c4b 100%);" type="button" id="affiliate-area-generate-share-url-btn" class="ks-btn">Generate Share Cart URL</button>
+        </div>
+      </div>
+      <div id="affiliate-area-generated-share-wrap" class="ks-share-cart-builder__output" style="display: none;">
+        <label for="affiliate-area-generated-share-url" class="ks-share-cart-builder__output-label">Share Cart URL</label>
+        <div class="ks-share-cart-builder__output-row">
+          <input type="text" id="affiliate-area-generated-share-url" class="ks-share-cart-builder__output-input" readonly aria-label="Generated share cart URL">
+          <button type="button" id="affiliate-area-copy-share-url-btn" class="ks-btn">Copy</button>
+        </div>
+      </div>
+
+      <div id="affiliate-area-share-discount-modal" class="ks-share-discount-modal" role="dialog" aria-labelledby="affiliate-area-share-discount-modal-title" aria-modal="true" hidden>
+        <div class="ks-share-discount-modal__backdrop"></div>
+        <div class="ks-share-discount-modal__dialog">
+          <h3 id="affiliate-area-share-discount-modal-title" class="ks-share-discount-modal__title">Choose discount for this share link</h3>
+          <p class="ks-share-discount-modal__desc">Select one of your single-use discount codes from Settings to add to the URL, or use no discount.</p>
+          <div id="affiliate-area-share-discount-modal-codes" class="ks-share-discount-modal__codes" role="radiogroup" aria-label="Single-use discount codes">
+            <p class="ks-share-discount-modal__loading">Loading your codes…</p>
+          </div>
+          <div class="ks-share-discount-modal__actions">
+            <button type="button" id="affiliate-area-share-discount-modal-cancel" class="ks-btn ks-btn--secondary">Cancel</button>
+            <button type="button" id="affiliate-area-share-discount-modal-generate" class="ks-btn" style="background: linear-gradient(145deg, #36406f 0%, #384c4b 100%);">Generate Share Cart URL</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="affiliate-area-referral-links-wrap" style="display: none;">
+      <h4 class="ks-subtitle">Your Referral Links</h4>
+      <div id="affiliate-area-referral-links"></div>
+    </div>
+    <div id="affiliate-area-urls-content" style="display: none;">
+      <p class="ks-affiliate-area__placeholder">Your referral links will appear here.</p>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="statistics" role="tabpanel">
+    <h3 class="ks-section-title">Statistics</h3>
+    <p>Overview of your affiliate performance and key metrics.</p>
+    <div id="affiliate-area-statistics-content">
+      <div class="ks-loader" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="graphs" role="tabpanel">
+    <h3 class="ks-section-title">Graphs</h3>
+    <p>Charts and visualisations of your referral and earnings data.</p>
+    <div id="affiliate-area-graphs-content">
+      <p class="ks-affiliate-area__placeholder">Graphs content will appear here.</p>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="referrals" role="tabpanel">
+    <h3 class="ks-section-title">Referrals</h3>
+    <p>List of referrals and their status.</p>
+    <div id="affiliate-area-referrals-content">
+      <p class="ks-affiliate-area__placeholder">Referrals content will appear here.</p>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="payouts" role="tabpanel">
+    <h3 class="ks-section-title">Payouts</h3>
+    <p>Payment history and pending payouts.</p>
+    <div id="affiliate-area-payouts-content">
+      <div class="ks-loader" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="visits" role="tabpanel">
+    <h3 class="ks-section-title">Visits</h3>
+    <p>Traffic and click data from your affiliate links (including Share Cart links).</p>
+    <div id="affiliate-area-visits-content">
+      <div class="ks-loader" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="settings" role="tabpanel">
+    <h3 class="ks-section-title">Settings</h3>
+    <p>Update your PayPal email and other affiliate account settings.</p>
+    <div id="affiliate-area-profile">
+      <div class="ks-loader" aria-hidden="true"></div>
+    </div>
+    <div id="affiliate-area-settings-content" style="display: none;">
+      <p class="ks-affiliate-area__placeholder">Settings content will appear here.</p>
+    </div>
+  </section>
+
+  <section class="ks-tab-content" id="lifetime-customers" role="tabpanel">
+    <h3 class="ks-section-title">Lifetime Customers</h3>
+    <p>Customers attributed to your affiliate link over time.</p>
+    <div id="affiliate-area-lifetime-content">
+      <p class="ks-affiliate-area__placeholder">Lifetime customers content will appear here.</p>
+    </div>
+  </section>
+
+  </div><!-- /.ks-dashboard-main -->
+
+  <!-- Create New Link modal (replaces browser prompt) -->
+  <div id="ks-create-link-modal" class="ks-create-link-modal" role="dialog" aria-labelledby="ks-create-link-modal-title" aria-modal="true" hidden>
+    <div class="ks-create-link-modal__backdrop" data-close></div>
+    <div class="ks-create-link-modal__box">
+      <h3 id="ks-create-link-modal-title" class="ks-create-link-modal__title">Create New Referral Link</h3>
+      <p class="ks-create-link-modal__hint">This will replace your current referral link with a new one. Enter a description for the new link.</p>
+      <label for="ks-create-link-description" class="ks-sr-only">Description for referral link</label>
+      <input type="text" id="ks-create-link-description" class="ks-create-link-modal__input" placeholder="e.g. Main Referral Link" maxlength="120" autocomplete="off">
+      <div class="ks-create-link-modal__actions">
+        <button type="button" class="ks-btn ks-create-link-modal__cancel" data-close>Cancel</button>
+        <button type="button" class="ks-btn ks-create-link-modal__submit" id="ks-create-link-modal-submit">Create Link</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Affiliate Area",
+  "target": "section",
+  "javascript": "affiliate-area.js",
+  "stylesheet": "customer-dashboard.css",
+  "settings": []
+}
+{% endschema %}

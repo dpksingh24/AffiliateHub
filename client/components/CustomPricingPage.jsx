@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import DiscountSegmentModal from './Models/DiscountSegmentModal';
+import DiscountProductModal from './Models/DiscountProductModal';
 import {
   Page,
   Layout,
@@ -58,7 +60,9 @@ import {
   searchCollections,
   getCustomerTags,
   getProductTags,
-  syncPricingRulesToShopify
+  syncPricingRulesToShopify,
+
+  getShopifyDiscountByRuleId,
 } from '../services/pricingApi'
 
 // Selection Card Component for better visual selection
@@ -179,7 +183,6 @@ const CustomPricingPage = ({ shop }) => {
   // Products
   const [applyToProducts, setApplyToProducts] = useState('all')
   const [specificProducts, setSpecificProducts] = useState([])
-  const [specificVariants, setSpecificVariants] = useState([])
   const [collections, setCollections] = useState([])
   const [productTags, setProductTags] = useState([])
   const [productTagInput, setProductTagInput] = useState('')
@@ -196,7 +199,6 @@ const CustomPricingPage = ({ shop }) => {
 
   // Search modals
   const [productSearchModal, setProductSearchModal] = useState(false)
-  const [variantSearchModal, setVariantSearchModal] = useState(false)
   const [customerSearchModal, setCustomerSearchModal] = useState(false)
   const [collectionSearchModal, setCollectionSearchModal] = useState(false)
   
@@ -206,11 +208,13 @@ const CustomPricingPage = ({ shop }) => {
   const [productSearchLoading, setProductSearchLoading] = useState(false)
   const [selectedProductsTemp, setSelectedProductsTemp] = useState([])
   
-  const [variantSearchQuery, setVariantSearchQuery] = useState('')
-  const [variantSearchResults, setVariantSearchResults] = useState([])
-  const [variantSearchLoading, setVariantSearchLoading] = useState(false)
-  const [selectedVariantsTemp, setSelectedVariantsTemp] = useState([])
-  
+  // Edit variants for a selected product (Specific Products) — commented out for now
+  // const [variantEditModalOpen, setVariantEditModalOpen] = useState(false)
+  // const [variantEditProduct, setVariantEditProduct] = useState(null)
+  // const [variantEditVariants, setVariantEditVariants] = useState([])
+  // const [variantEditSelectedIds, setVariantEditSelectedIds] = useState([])
+  // const [variantEditLoading, setVariantEditLoading] = useState(false)
+
   const [customerSearchQuery, setCustomerSearchQuery] = useState('')
   const [customerSearchResults, setCustomerSearchResults] = useState([])
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false)
@@ -220,6 +224,13 @@ const CustomPricingPage = ({ shop }) => {
   const [collectionSearchResults, setCollectionSearchResults] = useState([])
   const [collectionSearchLoading, setCollectionSearchLoading] = useState(false)
   const [selectedCollectionsTemp, setSelectedCollectionsTemp] = useState([])
+
+  // state for segment assignment
+  const [showSegmentModal, setShowSegmentModal] = useState(false);
+  const [modalDiscountId, setModalDiscountId] = useState(null);
+  const [modalDiscountTitle, setModalDiscountTitle] = useState('');
+  const [modalSegmentName, setModalSegmentName] = useState('');
+  const [currentRuleId, setCurrentRuleId] = useState(null)
 
   useEffect(() => {
     fetchPricingRules()
@@ -254,7 +265,7 @@ const CustomPricingPage = ({ shop }) => {
 
   // Validate new price against product prices
   useEffect(() => {
-    if (priceType === 'new_price' && discountValue && (applyToProducts === 'specific_products' || applyToProducts === 'specific_variants')) {
+    if (priceType === 'new_price' && discountValue && applyToProducts === 'specific_products') {
       const newPrice = parseFloat(discountValue)
       if (isNaN(newPrice)) {
         setPriceValidationWarning(null)
@@ -263,29 +274,15 @@ const CustomPricingPage = ({ shop }) => {
 
       const invalidProducts = []
 
-      if (applyToProducts === 'specific_products') {
-        for (const product of specificProducts) {
-          const originalPrice = productPrices[product.id]
-          if (originalPrice && newPrice > originalPrice) {
-            invalidProducts.push({
-              id: product.id,
-              name: product.title || `Product ${product.id}`,
-              originalPrice,
-              newPrice
-            })
-          }
-        }
-      } else if (applyToProducts === 'specific_variants') {
-        for (const variant of specificVariants) {
-          const originalPrice = productPrices[variant.id]
-          if (originalPrice && newPrice > originalPrice) {
-            invalidProducts.push({
-              id: variant.id,
-              name: `${variant.productTitle || 'Product'} - ${variant.title || 'Variant'}`,
-              originalPrice,
-              newPrice
-            })
-          }
+      for (const product of specificProducts) {
+        const originalPrice = productPrices[product.id]
+        if (originalPrice && newPrice > originalPrice) {
+          invalidProducts.push({
+            id: product.id,
+            name: product.title || `Product ${product.id}`,
+            originalPrice,
+            newPrice
+          })
         }
       }
 
@@ -301,78 +298,44 @@ const CustomPricingPage = ({ shop }) => {
     } else {
       setPriceValidationWarning(null)
     }
-  }, [priceType, discountValue, applyToProducts, specificProducts, specificVariants, productPrices])
+  }, [priceType, discountValue, applyToProducts, specificProducts, productPrices])
 
   // Fetch product prices when products are selected
   useEffect(() => {
     const fetchPrices = async () => {
-      if (applyToProducts !== 'specific_products' && applyToProducts !== 'specific_variants') {
+      if (applyToProducts !== 'specific_products') {
         setProductPrices({})
         return
       }
 
       try {
         const prices = {}
-        
-        if (applyToProducts === 'specific_products') {
-          // For specific products, fetch prices
-          for (const product of specificProducts) {
-            try {
-              const response = await searchProducts(product.title || product.id)
-              const foundProduct = response.products?.find(p => p.id === product.id)
-              if (foundProduct && foundProduct.variants?.length > 0) {
-                // Get the first variant's price
-                const variantPrice = parseFloat(foundProduct.variants[0].price)
-                if (!isNaN(variantPrice)) {
-                  prices[product.id] = variantPrice
-                }
-              }
-            } catch (err) {
-              console.error(`Error fetching price for product ${product.id}:`, err)
-            }
-          }
-        } else if (applyToProducts === 'specific_variants') {
-          // For specific variants, use the price from the variant object if available
-          for (const variant of specificVariants) {
-            if (variant.price) {
-              const variantPrice = parseFloat(variant.price)
+        for (const product of specificProducts) {
+          try {
+            const response = await searchProducts(product.title || product.id)
+            const foundProduct = response.products?.find(p => p.id === product.id)
+            if (foundProduct && foundProduct.variants?.length > 0) {
+              const variantPrice = parseFloat(foundProduct.variants[0].price)
               if (!isNaN(variantPrice)) {
-                prices[variant.id] = variantPrice
-              }
-            } else {
-              // If price not available, try to fetch it
-              try {
-                const response = await searchProducts(variant.productTitle || variant.productId)
-                const foundProduct = response.products?.find(p => p.id === variant.productId)
-                if (foundProduct) {
-                  const foundVariant = foundProduct.variants?.find(v => v.id === variant.id)
-                  if (foundVariant && foundVariant.price) {
-                    const variantPrice = parseFloat(foundVariant.price)
-                    if (!isNaN(variantPrice)) {
-                      prices[variant.id] = variantPrice
-                    }
-                  }
-                }
-              } catch (err) {
-                console.error(`Error fetching price for variant ${variant.id}:`, err)
+                prices[product.id] = variantPrice
               }
             }
+          } catch (err) {
+            console.error(`Error fetching price for product ${product.id}:`, err)
           }
         }
-        
         setProductPrices(prices)
       } catch (err) {
         console.error('Error fetching product prices:', err)
       }
     }
 
-    if ((applyToProducts === 'specific_products' && specificProducts.length > 0) ||
-        (applyToProducts === 'specific_variants' && specificVariants.length > 0)) {
+    if (applyToProducts === 'specific_products' && specificProducts.length > 0) {
       fetchPrices()
     } else {
       setProductPrices({})
     }
-  }, [applyToProducts, specificProducts, specificVariants])
+  }, [applyToProducts, specificProducts])
 
   const handleSyncToShopify = async () => {
     try {
@@ -384,6 +347,72 @@ const CustomPricingPage = ({ shop }) => {
     } finally {
       setSyncing(false)
     }
+  }
+
+  const [productDiscountModalOpen, setProductDiscountModalOpen] = useState(false)
+  /** Open the linked Shopify discount page in a new tab so admin can edit "Applies to" products manually */
+  const openDiscountPageInNewTab = () => {
+    if (!editingRule?.shopifyDiscountId || !shop) return
+    const idStr = String(editingRule.shopifyDiscountId).trim()
+    const numericId = idStr.match(/\/(\d+)$/)?.[1] || idStr
+    const storeHandle = shop.replace(/\.myshopify\.com$/i, '')
+    const url = `https://admin.shopify.com/store/${storeHandle}/discounts/${numericId}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+  const openProductDiscountModal = () => {
+    if (editingRule?.shopifyDiscountId) setProductDiscountModalOpen(true)
+  }
+  // Variant selection/edit — commented out for now (specific products only)
+  // const openVariantEditModal = async (product) => {
+  //   setVariantEditProduct(product)
+  //   setVariantEditLoading(true)
+  //   setVariantEditModalOpen(true)
+  //   setVariantEditVariants([])
+  //   setVariantEditSelectedIds(product.variantIds || [])
+  //   try {
+  //     const response = await searchProducts(product.title || product.id)
+  //     const found = response.products?.find((p) => String(p.id) === String(product.id))
+  //     if (found?.variants?.length) {
+  //       setVariantEditVariants(found.variants)
+  //       if (!Array.isArray(product.variantIds) || product.variantIds.length === 0) {
+  //         setVariantEditSelectedIds(found.variants.map((v) => v.id))
+  //       }
+  //     }
+  //   } catch (e) {
+  //     console.error('Error loading variants:', e)
+  //   } finally {
+  //     setVariantEditLoading(false)
+  //   }
+  // }
+  // const toggleVariantEditSelection = (variantId) => {
+  //   setVariantEditSelectedIds((prev) =>
+  //     prev.includes(variantId) ? prev.filter((id) => id !== variantId) : [...prev, variantId]
+  //   )
+  // }
+  // const handleVariantEditConfirm = () => {
+  //   if (!variantEditProduct) return
+  //   setSpecificProducts((prev) =>
+  //     prev.map((p) =>
+  //       p.id === variantEditProduct.id
+  //         ? { ...p, variantIds: variantEditSelectedIds.length > 0 ? variantEditSelectedIds : undefined }
+  //         : p
+  //     )
+  //   )
+  //   setVariantEditModalOpen(false)
+  //   setVariantEditProduct(null)
+  //   setVariantEditVariants([])
+  //   setVariantEditSelectedIds([])
+  //   showToast(
+  //     variantEditSelectedIds.length > 0
+  //       ? `Variants updated (${variantEditSelectedIds.length} selected). Save the rule to sync to the store.`
+  //       : 'All variants selected. Save the rule to sync.'
+  //   )
+  // }
+  const handleProductDiscountConfirm = (selectedProducts, applyTo) => {
+    console.log('[App] Product discount confirm: applied in app and store', { count: (selectedProducts || []).length, applyTo })
+    setSpecificProducts(selectedProducts || [])
+    setApplyToProducts(applyTo === 'all' ? 'all' : 'specific_products')
+    showToast('Applies to updated and discount synced.')
   }
 
   const showToast = (message, isError = false) => {
@@ -402,7 +431,6 @@ const CustomPricingPage = ({ shop }) => {
     setSpecificCustomers([])
     setApplyToProducts('all')
     setSpecificProducts([])
-    setSpecificVariants([])
     setCollections([])
     setProductTags([])
     setProductTagInput('')
@@ -410,11 +438,86 @@ const CustomPricingPage = ({ shop }) => {
     setDiscountValue('')
   }
 
+  // const handleCreateRule = () => {
+  //   setEditingRule(null)
+  //   resetForm()
+  //   setView('editor')
+  // }
+
   const handleCreateRule = () => {
     setEditingRule(null)
     resetForm()
     setView('editor')
   }
+
+  const handleSegmentAssigned = async () => {
+    try {
+      if (currentRuleId) {
+        const verifyResponse = await getShopifyDiscountByRuleId(currentRuleId);
+        
+        if (verifyResponse.success && verifyResponse.segmentAssigned) {
+          showToast('Segment assigned successfully! Discount is now active.')
+        } else {
+          showToast('Setup marked as complete. Please verify segment assignment in Shopify Admin.')
+        }
+      } else {
+        showToast('Segment information updated. Please save the rule to apply changes.')
+      }
+  
+      setShowSegmentModal(false)
+      await fetchPricingRules()
+      
+      // Only return to list if we have a saved rule
+      if (currentRuleId) {
+        setView('list')
+      }
+      
+    } catch (error) {
+      console.error('Error verifying segment assignment:', error)
+      setShowSegmentModal(false)
+      showToast('Please verify segment assignment in Shopify Admin')
+      await fetchPricingRules()
+      if (currentRuleId) {
+        setView('list')
+      }
+    }
+  }
+
+  const handleModalClose = () => {
+    setShowSegmentModal(false);
+  };
+
+  // const handleOpenSegmentModal = (rule) => {
+  //   const id = rule?.shopifyDiscountId;
+  //   // Allow opening modal even without shopifyDiscountId for new rules
+  //   setModalDiscountId(id || null);
+  //   setModalDiscountTitle(rule?.discountTitle || rule?.name || discountTitle || ruleName || 'Discount');
+  //   setModalSegmentName(rule?.customerTags?.[0] || customerTags?.[0] || 'Customer Segment');
+  //   setCurrentRuleId(rule?.id || null);
+  //   setShowSegmentModal(true);
+  // };
+  const handleOpenSegmentModal = (rule) => {
+    // ❌ DON'T use shopifyDiscountId as rule id
+    // const id = rule?.shopifyDiscountId
+  
+    // ✅ MongoDB rule ID
+    setCurrentRuleId(rule?.id || null)
+  
+    // ✅ Shopify ID (separate)
+    setModalDiscountId(rule.shopifyDiscountId)
+  
+    setModalDiscountTitle(
+      rule.discountTitle || rule.name || 'Discount'
+    )
+  
+    setModalSegmentName(
+      rule.customerTags?.[0] || 'Customer Segment'
+    )
+  
+    setShowSegmentModal(true)
+  }
+  
+
 
   const handleEditRule = (rule) => {
     setEditingRule(rule)
@@ -424,9 +527,10 @@ const CustomPricingPage = ({ shop }) => {
     setApplyToCustomers(rule.applyToCustomers || 'all')
     setCustomerTags(rule.customerTags || [])
     setSpecificCustomers(rule.specificCustomers || [])
-    setApplyToProducts(rule.applyToProducts || 'all')
-    setSpecificProducts(rule.specificProducts || [])
-    setSpecificVariants(rule.specificVariants || [])
+    // Legacy "Specific Variants" is no longer a separate option; treat as Specific Products (user can add products + Edit variants)
+    const productMode = rule.applyToProducts === 'specific_variants' ? 'specific_products' : (rule.applyToProducts || 'all')
+    setApplyToProducts(productMode)
+    setSpecificProducts(rule.applyToProducts === 'specific_variants' ? [] : (rule.specificProducts || []))
     setCollections(rule.collections || [])
     setProductTags(rule.productTags || [])
     setPriceType(rule.priceType || 'percent_off')
@@ -434,18 +538,129 @@ const CustomPricingPage = ({ shop }) => {
     setView('editor')
   }
 
+  // const handleSaveRule = async () => {
+  //   if (!ruleName.trim()) {
+  //     showToast('Rule name is required', true)
+  //     return
+  //   }
+  //   if (!discountValue || isNaN(parseFloat(discountValue))) {
+  //     showToast('Valid discount value is required', true)
+  //     return
+  //   }
+
+  //   try {
+  //     setSaving(true)
+  //     const ruleData = {
+  //       name: ruleName.trim(),
+  //       status: ruleStatus,
+  //       discountTitle: discountTitle.trim(),
+  //       applyToCustomers,
+  //       customerTags,
+  //       specificCustomers,
+  //       applyToProducts,
+  //       specificProducts,
+  //       specificVariants,
+  //       collections,
+  //       productTags,
+  //       priceType,
+  //       discountValue: parseFloat(discountValue)
+  //     }
+
+  //     if (editingRule) {
+  //       await updatePricingRule(editingRule.id, ruleData)
+  //       showToast('Pricing rule updated successfully')
+  //     } else {
+  //       await createPricingRule(ruleData)
+  //       showToast('Pricing rule created successfully')
+  //     }
+
+  //     await fetchPricingRules()
+  //     setView('list')
+  //   } catch (err) {
+  //     showToast(err.message || 'Failed to save pricing rule', true)
+  //   } finally {
+  //     setSaving(false)
+  //   }
+  // }
+  // const handleSaveRule = async () => {
+  //   if (!ruleName.trim()) {
+  //     showToast('Rule name is required', true)
+  //     return
+  //   }
+  //   if (!discountValue || isNaN(parseFloat(discountValue))) {
+  //     showToast('Valid discount value is required', true)
+  //     return
+  //   }
+  
+  //   try {
+  //     setSaving(true)
+  //     const ruleData = {
+  //       name: ruleName.trim(),
+  //       status: ruleStatus,
+  //       discountTitle: discountTitle.trim(),
+  //       applyToCustomers,
+  //       customerTags,
+  //       specificCustomers,
+  //       applyToProducts,
+  //       specificProducts,
+  //       specificVariants,
+  //       collections,
+  //       productTags,
+  //       priceType,
+  //       discountValue: parseFloat(discountValue)
+  //     }
+  
+  //     let response;
+  //     let ruleId
+
+  //     if (editingRule) {
+  //       response = await updatePricingRule(editingRule.id, ruleData)
+  //       ruleId = editingRule.id
+  //       showToast('Pricing rule updated successfully')
+  //       const id = response?.shopifyDiscountId ?? response?.rule?.shopifyDiscountId
+  //       if (id) {
+  //         setModalDiscountId(id)
+  //         setModalDiscountTitle((response.discountTitle ?? discountTitle.trim()) || ruleName.trim())
+  //         setModalSegmentName(response.segmentName || 'Customer Segment')
+  //         setCurrentRuleId(editingRule.id)
+  //         setShowSegmentModal(true)
+  //         return
+  //       }
+  //     } else {
+  //       response = await createPricingRule(ruleData)
+  //       ruleId = response.ruleId || response.rule?.id
+  //       showToast('Pricing rule created successfully')
+  //       const id = response?.shopifyDiscountId ?? response?.rule?.shopifyDiscountId
+  //       if (id) {
+  //         setModalDiscountId(id)
+  //         setModalDiscountTitle((response.discountTitle ?? discountTitle.trim()) || ruleName.trim())
+  //         setModalSegmentName(response.segmentName || response.setupInstructions?.segmentName || 'Customer Segment')
+  //         setCurrentRuleId(response.ruleId ?? response.rule?.id ?? response.rule?._id)
+  //         setShowSegmentModal(true)
+  //         await fetchPricingRules()
+  //         return
+  //       }
+  //     }
+
+  //     await fetchPricingRules()
+  //     setView('list')
+      
+  //   } catch (err) {
+  //     console.error('Save error:', err) // 🔥 NEW: Better error logging
+  //     showToast(err.message || 'Failed to save pricing rule', true)
+  //   } finally {
+  //     setSaving(false)
+  //   }
+  // }
   const handleSaveRule = async () => {
     if (!ruleName.trim()) {
       showToast('Rule name is required', true)
       return
     }
-    if (!discountValue || isNaN(parseFloat(discountValue))) {
-      showToast('Valid discount value is required', true)
-      return
-    }
-
+  
     try {
       setSaving(true)
+  
       const ruleData = {
         name: ruleName.trim(),
         status: ruleStatus,
@@ -455,29 +670,57 @@ const CustomPricingPage = ({ shop }) => {
         specificCustomers,
         applyToProducts,
         specificProducts,
-        specificVariants,
         collections,
         productTags,
         priceType,
-        discountValue: parseFloat(discountValue)
+        discountValue: parseFloat(discountValue),
       }
-
+  
+      let response
+      let ruleId
+  
       if (editingRule) {
-        await updatePricingRule(editingRule.id, ruleData)
+        response = await updatePricingRule(editingRule.id, ruleData)
+  
+        // ✅ MongoDB rule ID (ALWAYS this)
+        ruleId = editingRule.id
         showToast('Pricing rule updated successfully')
+  
       } else {
-        await createPricingRule(ruleData)
+        response = await createPricingRule(ruleData)
+  
+        // ✅ MongoDB rule ID from backend
+        ruleId = response.ruleId || response.rule?.id
         showToast('Pricing rule created successfully')
       }
-
+  
+      // ✅ Store ruleId for later API calls
+      setCurrentRuleId(ruleId)
+  
+      // ✅ Shopify discount ID (different thing)
+      const shopifyDiscountId =
+        response.shopifyDiscountId || response.rule?.shopifyDiscountId
+  
+      if (shopifyDiscountId) {
+        setModalDiscountId(shopifyDiscountId)
+        setModalDiscountTitle(discountTitle || ruleName)
+        setModalSegmentName(customerTags?.[0] || 'Customer Segment')
+  
+        setShowSegmentModal(true)
+        return
+      }
+  
       await fetchPricingRules()
       setView('list')
+  
     } catch (err) {
+      console.error('Save error:', err)
       showToast(err.message || 'Failed to save pricing rule', true)
     } finally {
       setSaving(false)
     }
   }
+  
 
   const handleDeleteClick = (rule) => {
     setRuleToDelete(rule)
@@ -589,64 +832,6 @@ const CustomPricingPage = ({ shop }) => {
         title: product.title,
         handle: product.handle,
         image: product.image
-      }])
-    }
-  }
-
-  // Variant search
-  const handleVariantSearch = async (query) => {
-    setVariantSearchQuery(query)
-    if (!query.trim()) {
-      setVariantSearchResults([])
-      return
-    }
-    try {
-      setVariantSearchLoading(true)
-      const response = await searchProducts(query)
-      const allVariants = []
-      ;(response.products || []).forEach(product => {
-        ;(product.variants || []).forEach(variant => {
-          allVariants.push({
-            ...variant,
-            productId: product.id,
-            productTitle: product.title,
-            productImage: product.image
-          })
-        })
-      })
-      setVariantSearchResults(allVariants)
-    } catch (err) {
-      console.error('Variant search error:', err)
-    } finally {
-      setVariantSearchLoading(false)
-    }
-  }
-
-  const openVariantSearchModal = () => {
-    setSelectedVariantsTemp([...specificVariants])
-    setVariantSearchQuery('')
-    setVariantSearchResults([])
-    setVariantSearchModal(true)
-  }
-
-  const confirmVariantSelection = () => {
-    setSpecificVariants(selectedVariantsTemp)
-    setVariantSearchModal(false)
-  }
-
-  const toggleVariantSelection = (variant) => {
-    const exists = selectedVariantsTemp.find(v => v.id === variant.id)
-    if (exists) {
-      setSelectedVariantsTemp(selectedVariantsTemp.filter(v => v.id !== variant.id))
-    } else {
-      setSelectedVariantsTemp([...selectedVariantsTemp, {
-        id: variant.id,
-        productId: variant.productId,
-        title: variant.title,
-        productTitle: variant.productTitle,
-        sku: variant.sku,
-        price: variant.price,
-        image: variant.image || variant.productImage
       }])
     }
   }
@@ -828,7 +1013,6 @@ const CustomPricingPage = ({ shop }) => {
     switch (applyToProducts) {
       case 'all': return 'All products'
       case 'specific_products': return `${specificProducts.length} specific product(s)`
-      case 'specific_variants': return `${specificVariants.length} specific variant(s)`
       case 'collections': return `${collections.length} collection(s)`
       case 'product_tags': return productTags.length > 0 ? `Tags: ${productTags.join(', ')}` : 'No tags selected'
       default: return 'Not configured'
@@ -890,6 +1074,16 @@ const CustomPricingPage = ({ shop }) => {
       </IndexTable.Cell>
       <IndexTable.Cell>
         <InlineStack gap="100">
+          {rule.shopifyDiscountId && (
+            <Tooltip content="Assign segment">
+              <Button
+                size="slim"
+                icon={DiscountIcon}
+                onClick={() => handleOpenSegmentModal(rule)}
+                accessibilityLabel={`Assign segment for ${rule.name}`}
+              />
+            </Tooltip>
+          )}
           <Tooltip content="Edit rule">
             <Button
               size="slim"
@@ -994,14 +1188,14 @@ const CustomPricingPage = ({ shop }) => {
                       <BlockStack gap="400">
                         <SectionHeader number="2" title="Customer Conditions" subtitle="Who should this discount apply to?" />
                         <Divider />
-                        <InlineGrid columns={2} gap="300">
-                          <SelectionCard
-                            title="All Customers"
-                            description="Everyone visiting your store"
-                            icon={PersonIcon}
-                            selected={applyToCustomers === 'all'}
-                            onClick={() => setApplyToCustomers('all')}
-                          />
+                        {/* <SelectionCard
+                          title="All Customers"
+                          description="Everyone visiting your store"
+                          icon={PersonIcon}
+                          selected={applyToCustomers === 'all'}
+                          onClick={() => setApplyToCustomers('all')}
+                        /> */}
+                        {/* <InlineGrid columns={2} gap="300">
                           <SelectionCard
                             title="Logged In Customers"
                             description="Customers with an account"
@@ -1039,7 +1233,7 @@ const CustomPricingPage = ({ shop }) => {
                               )}
                             </BlockStack>
                           </SelectionCard>
-                        </InlineGrid>
+                        </InlineGrid> */}
                         <SelectionCard
                           title="Customer Tags"
                           description="Customers with specific tags (e.g., practitioner, wholesale)"
@@ -1085,6 +1279,19 @@ const CustomPricingPage = ({ shop }) => {
                             )}
                           </BlockStack>
                         </SelectionCard>
+                        {/* {editingRule && (
+                          <BlockStack gap="200">
+                            <Button
+                              icon={DiscountIcon}
+                              onClick={() => handleOpenSegmentModal(editingRule)}
+                            >
+                              Assign segment
+                            </Button>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              Assign a customer segment to the discount in Shopify (save the rule first if you just created it).
+                            </Text>
+                          </BlockStack>
+                        )} */}
                       </BlockStack>
                     </Box>
                   </Card>
@@ -1094,15 +1301,14 @@ const CustomPricingPage = ({ shop }) => {
                     <Box padding="500">
                       <BlockStack gap="400">
                         <SectionHeader number="3" title="Product Conditions" subtitle="Which products should have this pricing?" />
-                        <Divider />
-                        <InlineGrid columns={2} gap="300">
-                          <SelectionCard
+                        {/* Full-width layout to match Customer Conditions card (no InlineGrid) */}
+                          {/* <SelectionCard
                             title="All Products"
                             description="Apply to your entire catalog"
                             icon={ProductIcon}
                             selected={applyToProducts === 'all'}
                             onClick={() => setApplyToProducts('all')}
-                          />
+                          /> */}
                           <SelectionCard
                             title="Specific Products"
                             description="Select individual products"
@@ -1112,76 +1318,56 @@ const CustomPricingPage = ({ shop }) => {
                             badge={specificProducts.length > 0 ? `${specificProducts.length}` : null}
                           >
                             <BlockStack gap="300">
-                              <Button variant="secondary" icon={ProductIcon} onClick={openProductSearchModal} fullWidth>
-                                Select Products
-                              </Button>
-                              {specificProducts.length > 0 && (
-                                <InlineStack gap="100" wrap>
-                                  {specificProducts.map(product => (
-                                    <Tag key={product.id} onRemove={() => setSpecificProducts(specificProducts.filter(p => p.id !== product.id))}>
-                                      {product.title}
-                                    </Tag>
-                                  ))}
-                                </InlineStack>
+                              {editingRule?.shopifyDiscountId ? (
+                                <BlockStack gap="100">
+                                  <Button variant="secondary" icon={ProductIcon} onClick={openProductDiscountModal} fullWidth>
+                                    Select or remove products
+                                  </Button>
+                                  <Text variant="bodySm" tone="subdued">
+                                    Add or remove products; changes sync to the store discount when you save.
+                                  </Text>
+                                </BlockStack>
+                              ) : (
+                                <Button variant="secondary" icon={ProductIcon} onClick={openProductSearchModal} fullWidth>
+                                  Select Products
+                                </Button>
                               )}
-                            </BlockStack>
-                          </SelectionCard>
-                          <SelectionCard
-                            title="Specific Variants"
-                            description="Select specific product variants"
-                            icon={ProductIcon}
-                            selected={applyToProducts === 'specific_variants'}
-                            onClick={() => setApplyToProducts('specific_variants')}
-                            badge={specificVariants.length > 0 ? `${specificVariants.length}` : null}
-                          >
-                            <BlockStack gap="300">
-                              <Button variant="secondary" icon={ProductIcon} onClick={openVariantSearchModal} fullWidth>
-                                Select Variants
-                              </Button>
-                              {specificVariants.length > 0 && (
-                                <InlineStack gap="100" wrap>
-                                  {specificVariants.map(variant => (
-                                    <Tag key={variant.id} onRemove={() => setSpecificVariants(specificVariants.filter(v => v.id !== variant.id))}>
-                                      {variant.productTitle} - {variant.title}
-                                    </Tag>
-                                  ))}
-                                </InlineStack>
+                              {specificProducts.length > 0 && (
+                                <BlockStack gap="200">
+                                  <InlineStack gap="100" wrap>
+                                    {specificProducts.map((product) => (
+                                      <InlineStack key={product.id} gap="100" blockAlign="center" wrap={false}>
+                                        <Tag onRemove={() => setSpecificProducts(specificProducts.filter((p) => p.id !== product.id))}>
+                                          <Box as="span" minWidth={0} maxWidth="280px" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                                            {product.title}
+                                            {/* Variant count — commented out with variant edit
+                                            {Array.isArray(product.variantIds) && product.variantIds.length > 0
+                                              ? ` (${product.variantIds.length} variant${product.variantIds.length !== 1 ? 's' : ''})`
+                                              : ''}
+                                            */}
+                                          </Box>
+                                        </Tag>
+                                        {/* Edit variants — commented out for now
+                                        <Button
+                                          size="slim"
+                                          variant="plain"
+                                          onClick={() => openVariantEditModal(product)}
+                                        >
+                                          Edit variants
+                                        </Button>
+                                        */}
+                                      </InlineStack>
+                                    ))}
+                                  </InlineStack>
+                                  {/* <Text variant="bodySm" tone="subdued">
+                                    Use &quot;Edit variants&quot; to include only certain variants of a product; syncs to the store when you save.
+                                  </Text> */}
+                                </BlockStack>
                               )}
                             </BlockStack>
                           </SelectionCard>
 
-                            {/* ⚠️ Warning Banner for Specific Variants Limitation */}
-                            {applyToProducts === 'specific_variants' && (
-                              <Box paddingBlockStart="300">
-                                <Banner tone="warning">
-                                  <BlockStack gap="200">
-                                    <Text variant="bodyMd" fontWeight="semibold">
-                                      ⚠️ Shopify Limitation: Variant-Level Targeting
-                                    </Text>
-                                    <BlockStack gap="150">
-                                      <Text variant="bodySm">
-                                        Shopify's automatic discounts apply to entire products, not individual variants. When you create this rule, the discount will be applied to <strong>all variants</strong> of the selected products.
-                                      </Text>
-                                      <BlockStack gap="100">
-                                        <Text variant="bodySm" fontWeight="semibold">To apply the discount to only specific variants:</Text>
-                                        <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                                          <li><Text variant="bodySm">Save this pricing rule</Text></li>
-                                          <li><Text variant="bodySm">Go to Shopify Admin → Discounts</Text></li>
-                                          <li><Text variant="bodySm">Find the discount created by this rule</Text></li>
-                                          <li><Text variant="bodySm">Click <strong>"Edit variants"</strong> and uncheck the variants you don't want included</Text></li>
-                                          <li><Text variant="bodySm">Save the changes in Shopify</Text></li>
-                                        </ol>
-                                      </BlockStack>
-                                      <Text variant="bodySm" tone="subdued">
-                                        📌 The storefront will show the correct discounted price for matching variants only, but manual configuration in Shopify is required.
-                                      </Text>
-                                    </BlockStack>
-                                  </BlockStack>
-                                </Banner>
-                              </Box>
-                            )}
-                            
-                          <SelectionCard
+                          {/* <SelectionCard
                             title="Collections"
                             description="All products in selected collections"
                             icon={CollectionIcon}
@@ -1203,9 +1389,8 @@ const CustomPricingPage = ({ shop }) => {
                                 </InlineStack>
                               )}
                             </BlockStack>
-                          </SelectionCard>
-                        </InlineGrid>
-                        <SelectionCard
+                          </SelectionCard> */}
+                        {/* <SelectionCard
                           title="Product Tags"
                           description="Products with specific tags"
                           icon={HashtagIcon}
@@ -1249,7 +1434,7 @@ const CustomPricingPage = ({ shop }) => {
                               </InlineStack>
                             )}
                           </BlockStack>
-                        </SelectionCard>
+                        </SelectionCard> */}
                       </BlockStack>
                     </Box>
                   </Card>
@@ -1260,7 +1445,7 @@ const CustomPricingPage = ({ shop }) => {
                       <BlockStack gap="400">
                         <SectionHeader number="4" title="Custom Pricing" subtitle="How should the price be modified?" />
                         <Divider />
-                        <InlineGrid columns={3} gap="300">
+                        <InlineGrid columns={2} gap="300">
                           <SelectionCard
                             title="Percentage Off"
                             description="Reduce by %"
@@ -1275,15 +1460,15 @@ const CustomPricingPage = ({ shop }) => {
                             selected={priceType === 'amount_off'}
                             onClick={() => setPriceType('amount_off')}
                           />
-                          <SelectionCard
+                          {/* <SelectionCard
                             title="New Price"
                             description="Set fixed price"
                             icon={CashDollarIcon}
                             selected={priceType === 'new_price'}
                             onClick={() => setPriceType('new_price')}
-                          />
+                          /> */}
                         </InlineGrid>
-                        <Box paddingBlockStart="200">
+                        {/* <Box paddingBlockStart="200">
                           <TextField
                             label={
                               priceType === 'percent_off' ? 'Discount Percentage' :
@@ -1303,7 +1488,42 @@ const CustomPricingPage = ({ shop }) => {
                               'The new fixed price for selected products'
                             }
                           />
-                        </Box>
+                        </Box> */}
+                        <Box paddingBlockStart="200">
+                          <TextField
+                            label={
+                              priceType === 'percent_off'
+                                ? 'Discount Percentage'
+                                : priceType === 'amount_off'
+                                ? 'Discount Amount'
+                                : 'New Price'
+                            }
+                            value={discountValue}
+                            type="number"
+                            min={0}
+                            step="any"
+                            onChange={(value) => {
+                              const numericValue = Number(value);
+                              if (numericValue < 0 || isNaN(numericValue)) {
+                                return;
+                              }
+                              if (priceType === 'percent_off' && numericValue > 100) {
+                                return;
+                              }
+                              setDiscountValue(value);
+                            }}
+                            prefix={priceType !== 'percent_off' ? '$' : ''}
+                            suffix={priceType === 'percent_off' ? '%' : ''}
+                            autoComplete="off"
+                            helpText={
+                              priceType === 'percent_off'
+                                ? 'Enter a value between 1–100'
+                                : priceType === 'amount_off'
+                                ? 'Amount to subtract from original price (must be positive)'
+                                : 'The new fixed price for selected products'
+                            }
+                          />
+                          </Box>
                         
                         {/* Price Validation Warning */}
                         {priceValidationWarning && (
@@ -1427,6 +1647,13 @@ const CustomPricingPage = ({ shop }) => {
             <Button onClick={() => setView('list')}>
               Cancel
             </Button>
+            {/* {editingRule && (
+              <Button
+                onClick={() => handleOpenSegmentModal(editingRule)}
+              >
+                Assign segment
+              </Button>
+            )} */}
             <Button
               variant="primary"
               onClick={handleSaveRule}
@@ -1440,6 +1667,7 @@ const CustomPricingPage = ({ shop }) => {
         {/* Modals */}
         {/* Product Search Modal */}
         <Modal
+        limitHeight
           open={productSearchModal}
           onClose={() => setProductSearchModal(false)}
           title="Select Products"
@@ -1520,92 +1748,85 @@ const CustomPricingPage = ({ shop }) => {
           </Modal.Section>
         </Modal>
 
-        {/* Variant Search Modal */}
+        {/* Edit Variants Modal — commented out for now (specific products only)
         <Modal
-          open={variantSearchModal}
-          onClose={() => setVariantSearchModal(false)}
-          title="Select Variants"
+          open={variantEditModalOpen}
+          onClose={() => {
+            setVariantEditModalOpen(false)
+            setVariantEditProduct(null)
+            setVariantEditVariants([])
+            setVariantEditSelectedIds([])
+          }}
+          title={variantEditProduct ? `Edit variants — ${variantEditProduct.title}` : 'Edit variants'}
           primaryAction={{
-            content: `Confirm (${selectedVariantsTemp.length})`,
-            onAction: confirmVariantSelection,
+            content: 'Apply',
+            onAction: handleVariantEditConfirm,
+            disabled: variantEditLoading,
           }}
           secondaryActions={[
             {
               content: 'Cancel',
-              onAction: () => setVariantSearchModal(false),
+              onAction: () => {
+                setVariantEditModalOpen(false)
+                setVariantEditProduct(null)
+                setVariantEditVariants([])
+                setVariantEditSelectedIds([])
+              },
             },
           ]}
-          large
         >
           <Modal.Section>
             <BlockStack gap="400">
-              <TextField
-                prefix={<Icon source={SearchIcon} />}
-                placeholder="Search products to find variants..."
-                value={variantSearchQuery}
-                onChange={handleVariantSearch}
-                autoComplete="off"
-              />
-              {variantSearchLoading && (
-                <InlineStack align="center">
+              {variantEditLoading && (
+                <InlineStack align="center" blockAlign="center" gap="200">
                   <Spinner size="small" />
+                  <Text variant="bodySm" tone="subdued">Loading variants…</Text>
                 </InlineStack>
               )}
-              {selectedVariantsTemp.length > 0 && (
-                <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+              {!variantEditLoading && variantEditVariants.length === 0 && variantEditProduct && (
+                <Text variant="bodySm" tone="subdued">No variants found for this product.</Text>
+              )}
+              {!variantEditLoading && variantEditVariants.length > 0 && (
+                <>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button
+                      size="slim"
+                      variant="plain"
+                      onClick={() => setVariantEditSelectedIds(variantEditVariants.map((v) => v.id))}
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      size="slim"
+                      variant="plain"
+                      onClick={() => setVariantEditSelectedIds([])}
+                    >
+                      Deselect all
+                    </Button>
+                    <Text variant="bodySm" tone="subdued">
+                      {variantEditSelectedIds.length} of {variantEditVariants.length} selected
+                    </Text>
+                  </InlineStack>
                   <BlockStack gap="200">
-                    <Text variant="bodySm" fontWeight="semibold">{selectedVariantsTemp.length} selected</Text>
-                    <InlineStack gap="100" wrap>
-                      {selectedVariantsTemp.map(v => (
-                        <Tag key={v.id} onRemove={() => toggleVariantSelection(v)}>
-                          {v.productTitle} - {v.title}
-                        </Tag>
-                      ))}
-                    </InlineStack>
+                    {variantEditVariants.map((variant) => (
+                      <Checkbox
+                        key={variant.id}
+                        label={`${variant.title}${variant.sku ? ` (SKU: ${variant.sku})` : ''} — ${variant.price || ''}`}
+                        checked={variantEditSelectedIds.includes(variant.id)}
+                        onChange={() => toggleVariantEditSelection(variant.id)}
+                      />
+                    ))}
                   </BlockStack>
-                </Box>
-              )}
-              {variantSearchResults.length > 0 && (
-                <ResourceList
-                  resourceName={{ singular: 'variant', plural: 'variants' }}
-                  items={variantSearchResults}
-                  renderItem={(variant) => {
-                    const isSelected = selectedVariantsTemp.some(v => v.id === variant.id)
-                    return (
-                      <ResourceItem
-                        id={variant.id}
-                        onClick={() => toggleVariantSelection(variant)}
-                        media={
-                          <Thumbnail
-                            source={variant.image || variant.productImage || 'https://cdn.shopify.com/s/files/1/0757/9955/files/placeholder-image.png'}
-                            alt={variant.title}
-                            size="small"
-                          />
-                        }
-                      >
-                        <InlineStack align="space-between" blockAlign="center">
-                          <BlockStack gap="100">
-                            <Text variant="bodyMd" fontWeight="semibold">{variant.productTitle}</Text>
-                            <Text variant="bodySm" tone="subdued">
-                              {variant.title} {variant.sku ? `(SKU: ${variant.sku})` : ''} - ${variant.price}
-                            </Text>
-                          </BlockStack>
-                          <Checkbox checked={isSelected} onChange={() => {}} />
-                        </InlineStack>
-                      </ResourceItem>
-                    )
-                  }}
-                />
-              )}
-              {!variantSearchLoading && variantSearchQuery && variantSearchResults.length === 0 && (
-                <Text variant="bodySm" tone="subdued" alignment="center">No variants found</Text>
+                </>
               )}
             </BlockStack>
           </Modal.Section>
         </Modal>
+        */}
 
         {/* Customer Search Modal */}
         <Modal
+        limitHeight
           open={customerSearchModal}
           onClose={() => setCustomerSearchModal(false)}
           title="Select Customers"
@@ -1696,6 +1917,7 @@ const CustomPricingPage = ({ shop }) => {
 
         {/* Collection Search Modal */}
         <Modal
+        limitHeight
           open={collectionSearchModal}
           onClose={() => setCollectionSearchModal(false)}
           title="Select Collections"
@@ -1778,6 +2000,7 @@ const CustomPricingPage = ({ shop }) => {
 
         {/* Delete Confirmation Modal */}
         <Modal
+        limitHeight
           open={deleteModalActive}
           onClose={() => setDeleteModalActive(false)}
           title="Delete Pricing Rule?"
@@ -1802,6 +2025,36 @@ const CustomPricingPage = ({ shop }) => {
             </TextContainer>
           </Modal.Section>
         </Modal>
+
+
+
+        {/* NEW: Segment Assignment Modal */}
+        {showSegmentModal && (
+          <DiscountSegmentModal
+            isOpen={showSegmentModal}
+            onClose={handleModalClose}
+            shopifyDiscountId={modalDiscountId}
+            discountTitle={modalDiscountTitle}
+            discountId={modalDiscountId}  
+            ruleId={currentRuleId}      
+            segmentName={modalSegmentName}
+            onSegmentAssigned={handleSegmentAssigned}
+            shop={shop}
+          />
+        )}
+
+        {/* Product selection modal (like segment) – check/uncheck products for discount */}
+        {productDiscountModalOpen && editingRule?.shopifyDiscountId && (
+          <DiscountProductModal
+            isOpen={productDiscountModalOpen}
+            onClose={() => setProductDiscountModalOpen(false)}
+            ruleId={editingRule._id}
+            discountTitle={editingRule.discountTitle || editingRule.name}
+            currentProducts={specificProducts}
+            currentApplyTo={applyToProducts}
+            onConfirm={handleProductDiscountConfirm}
+          />
+        )}
 
         {/* Toast */}
         {toastActive && (
@@ -1936,7 +2189,7 @@ const CustomPricingPage = ({ shop }) => {
             <Box paddingBlockStart="400">
               <InlineStack align="center">
                 <Text as="p" tone="subdued">
-                  ©Copyright 2026 affiliatehub TECHNOLOGIES PVT. LTD.
+                  ©Copyright 2026 KISCIENCE TECHNOLOGIES PVT. LTD.
                 </Text>
               </InlineStack>
             </Box>
@@ -1945,6 +2198,7 @@ const CustomPricingPage = ({ shop }) => {
 
         {/* Delete Confirmation Modal */}
         <Modal
+        limitHeight
           open={deleteModalActive}
           onClose={() => setDeleteModalActive(false)}
           title="Delete Pricing Rule"
@@ -1968,6 +2222,20 @@ const CustomPricingPage = ({ shop }) => {
             </TextContainer>
           </Modal.Section>
         </Modal>
+
+        {/* Segment Assignment Modal (list view) */}
+        {showSegmentModal && (
+          <DiscountSegmentModal
+            isOpen={showSegmentModal}
+            onClose={handleModalClose}
+            shopifyDiscountId={modalDiscountId}
+            discountTitle={modalDiscountTitle}
+            segmentName={modalSegmentName}
+            onSegmentAssigned={handleSegmentAssigned}
+            ruleId={currentRuleId}
+            shop={shop}
+          />
+        )}
 
         {/* Toast */}
         {toastActive && (
