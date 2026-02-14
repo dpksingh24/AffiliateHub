@@ -9,7 +9,6 @@ const NavBar = () => {
 
   const navItems = [
     { label: 'Home', path: '/running' },
-    { label: 'Form Builder', path: '/form-builder' },
     { label: 'Custom Pricing', path: '/custom-pricing' },
   ]
 
@@ -66,8 +65,8 @@ const NavBar = () => {
         {/* Navigation Links */}
         <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || 
-              (item.path === '/form-builder' && location.pathname.startsWith('/form-builder'))
+            const isActive = location.pathname === item.path ||
+              (item.path === '/custom-pricing' && location.pathname.startsWith('/custom-pricing'))
             
             return (
               <button

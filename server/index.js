@@ -153,10 +153,10 @@ const connectDB = async () => {
     db = mongoClient.db(process.env.DB_NAME);
     console.log('Connected to MongoDB');
     
-    // Register Form Builder API routes
+    // Register API routes (pricing, admin customer)
     const formRoutes = createFormRoutes(db);
     app.use('/api', formRoutes);
-    console.log('Form Builder API routes registered');
+    console.log('API routes registered');
 
     app.use((err, req, res, next) => {
       // Handle Multer (file upload) errors gracefully with JSON

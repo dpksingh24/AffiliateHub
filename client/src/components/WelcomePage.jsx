@@ -14,23 +14,19 @@ import {
   Spinner
 } from '@shopify/polaris'
 import {
-  NoteIcon,
   DiscountFilledIcon,
   PlusIcon,
-  ChartVerticalFilledIcon,
   PersonFilledIcon,
-  ArrowRightIcon,
-  CheckCircleIcon
+  ArrowRightIcon
 } from '@shopify/polaris-icons'
 import { useNavigate } from 'react-router-dom'
 import logoIcon from '../assets/images/logo.png'
 import NavBar from './NavBar'
-import { getForms } from '../services/formApi'
+import { getPricingRules } from '../services/pricingApi'
 
 const WelcomePage = ({ shop }) => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [formsData, setFormsData] = useState({ total: 0, active: 0, submissions: 0, recentForms: [] })
   const [pricingData, setPricingData] = useState({ total: 0, active: 0, recentRules: [] })
 
   useEffect(() => {
@@ -40,32 +36,19 @@ const WelcomePage = ({ shop }) => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      
       try {
-        const formsResponse = await getForms()
-        const forms = formsResponse.forms || []
-        const activeForms = forms.filter(f => f.status === 'Active')
-        const totalSubmissions = forms.reduce((acc, f) => acc + (f.totalSubmissions || 0), 0)
-        
-        setFormsData({
-          total: forms.length,
-          active: activeForms.length,
-          submissions: totalSubmissions,
-          recentForms: forms.slice(0, 3)
+        const res = await getPricingRules()
+        const rules = res.rules || []
+        const activeRules = rules.filter(r => r.status === 'active')
+        setPricingData({
+          total: rules.length,
+          active: activeRules.length,
+          recentRules: rules.slice(0, 3)
         })
       } catch (err) {
-        console.error('Error fetching forms:', err)
+        console.error('Error fetching pricing rules:', err)
+        setPricingData({ total: 0, active: 0, recentRules: [] })
       }
-
-      setPricingData({
-        total: 2,
-        active: 2,
-        recentRules: [
-          { id: '1', name: 'Practitioner Discount', discountValue: 33, status: 'active' },
-          { id: '2', name: 'Wholesale Pricing', discountValue: 25, status: 'active' }
-        ]
-      })
-
     } catch (err) {
       console.error('Error fetching dashboard data:', err)
     } finally {
@@ -127,7 +110,7 @@ const WelcomePage = ({ shop }) => {
                     </Text>
                     <Text variant="bodyLg" as="p">
                       <span style={{ color: 'rgba(255,255,255,0.9)' }}>
-                        Your all-in-one platform for forms and custom pricing management
+                        Your platform for custom pricing management
                       </span>
                     </Text>
                   </BlockStack>
@@ -141,15 +124,13 @@ const WelcomePage = ({ shop }) => {
                 ) : (
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                     gap: '16px',
                     marginTop: '30px'
                   }}>
                     {[
-                      { label: 'Total Forms', value: formsData.total, icon: NoteIcon },
-                      { label: 'Active Forms', value: formsData.active, icon: CheckCircleIcon },
-                      { label: 'Submissions', value: formsData.submissions, icon: PersonFilledIcon },
-                      { label: 'Pricing Rules', value: pricingData.total, icon: DiscountFilledIcon }
+                      { label: 'Pricing Rules', value: pricingData.total, icon: DiscountFilledIcon },
+                      { label: 'Active Rules', value: pricingData.active, icon: PersonFilledIcon }
                     ].map((stat, index) => (
                       <div key={index} style={{
                         background: 'rgba(255,255,255,0.15)',
@@ -182,145 +163,6 @@ const WelcomePage = ({ shop }) => {
               gridTemplateColumns: 'repeat(2, 1fr)',
               gap: '20px'
             }}>
-              {/* Form Builder Card */}
-              <div style={{
-                background: 'white',
-                borderRadius: '16px',
-                border: '1px solid #e5e7eb',
-                overflow: 'hidden',
-                transition: 'box-shadow 0.3s, transform 0.3s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.1)'
-                e.currentTarget.style.transform = 'translateY(-4px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = 'none'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}
-              onClick={() => navigate('/form-builder')}
-              >
-                {/* Card Header */}
-                <div style={{
-                  background: '#5f9ea0',
-                  padding: '24px',
-                  color: 'white'
-                }}>
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="300" blockAlign="center">
-                      <div style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        display: 'flex'
-                      }}>
-                        <Icon source={NoteIcon} />
-                      </div>
-                      <BlockStack gap="100">
-                        <Text variant="headingLg" as="h2" fontWeight="bold">
-                          <span style={{ color: 'white' }}>Form Builder</span>
-                        </Text>
-                        <Text variant="bodySm">
-                          <span style={{ color: 'rgba(255,255,255,0.8)' }}>Create & manage forms</span>
-                        </Text>
-                      </BlockStack>
-                    </InlineStack>
-                    <div style={{
-                      background: 'rgba(255,255,255,0.2)',
-                      borderRadius: '50%',
-                      padding: '8px',
-                      display: 'flex'
-                    }}>
-                      <Icon source={ArrowRightIcon} />
-                    </div>
-                  </InlineStack>
-                </div>
-
-                {/* Card Body */}
-                <div style={{ padding: '20px' }}>
-                  {loading ? (
-                    <div style={{ textAlign: 'center', padding: '20px' }}>
-                      <Spinner size="small" />
-                    </div>
-                  ) : formsData.recentForms.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-                      <div style={{
-                        width: '60px',
-                        height: '60px',
-                        background: '#f0f7ff',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 16px'
-                      }}>
-                        <Icon source={NoteIcon} tone="info" />
-                      </div>
-                      <Text variant="bodyMd" tone="subdued">No forms created yet</Text>
-                      <div style={{ marginTop: '16px' }}>
-                        <Button 
-                          variant="primary"
-                          icon={PlusIcon}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate('/form-builder/new')
-                          }}
-                        >
-                          Create First Form
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <BlockStack gap="300">
-                      <Text variant="bodySm" tone="subdued" fontWeight="semibold">RECENT FORMS</Text>
-                      {formsData.recentForms.map((form) => (
-                        <div 
-                          key={form._id || form.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '14px 16px',
-                            background: '#f8fafc',
-                            borderRadius: '10px',
-                            borderLeft: `4px solid ${form.status === 'Active' ? '#22c55e' : '#94a3b8'}`
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate(`/form-builder/${form._id || form.id}/submissions`)
-                          }}
-                        >
-                          <BlockStack gap="100">
-                            <Text variant="bodyMd" fontWeight="semibold">{form.name}</Text>
-                            <InlineStack gap="200">
-                              <Badge tone={form.status === 'Active' ? 'success' : 'subdued'} size="small">
-                                {form.status || 'Draft'}
-                              </Badge>
-                              <Text variant="bodySm" tone="subdued">
-                                {form.totalSubmissions || 0} submissions
-                              </Text>
-                            </InlineStack>
-                          </BlockStack>
-                          <Icon source={ChartVerticalFilledIcon} tone="subdued" />
-                        </div>
-                      ))}
-                      <Button 
-                        variant="primary"
-                        icon={PlusIcon}
-                        fullWidth
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate('/form-builder/new')
-                        }}
-                      >
-                        Create New Form
-                      </Button>
-                    </BlockStack>
-                  )}
-                </div>
-              </div>
-
               {/* Custom Pricing Card */}
               <div style={{
                 background: 'white',

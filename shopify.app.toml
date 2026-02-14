@@ -1,25 +1,30 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "5b820bb4c1bf85a6f0e95662da57fb7a"
-name = "kiscience"
-handle = "kiscience-dashboard"
-application_url = "https://intl-objectives-publisher-burlington.trycloudflare.com"
+client_id = "4b311d4c607f20e51fc0d629e2269017"
+name = "AffiliateHub"
+handle = "affiliatehub"
+application_url = "https://kisciapp.ebizonstg.com"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_products,read_themes,write_themes,write_content,read_customers,write_customers,read_discounts,write_discounts"
+scopes = "read_products,write_products,read_themes,write_themes,write_content,read_customers,write_customers,read_discounts,write_discounts,read_orders,write_orders, read_customer_payment_methods, write_customer_payment_methods"
 
 [build]
 automatically_update_urls_on_dev = true
-dev_store_url = "kiscience.myshopify.com"
+dev_store_url = "printnest-dpk.myshopify.com"
 
 [webhooks]
-api_version = "2025-07"
+api_version = "2024-10"
 
 # App lifecycle webhook
 [[webhooks.subscriptions]]
 topics = ["app/uninstalled"]
 uri = "/webhooks/app/uninstalled"
+
+# Order tracking for affiliate conversions
+[[webhooks.subscriptions]]
+topics = ["orders/create"]
+uri = "/webhooks"
 
 # GDPR Mandatory webhooks (required for public apps)
 # Note: compliance_topics are used for GDPR webhooks, not regular topics
@@ -27,16 +32,19 @@ uri = "/webhooks/app/uninstalled"
 compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
 uri = "/webhooks"
 
+[extensions]
+directories = ["extensions/*"]
+
 [auth]
 redirect_urls = [
-  "https://intl-objectives-publisher-burlington.trycloudflare.com/running",
-  "https://intl-objectives-publisher-burlington.trycloudflare.com/auth/callback"
+  "https://kisciapp.ebizonstg.com/running",
+  "https://kisciapp.ebizonstg.com/auth/callback"
 ]
 
 [pos]
 embedded = false
 
 [app_proxy]
-url = "https://heart-furthermore-placement-msg.trycloudflare.comapi"
+url = "https://kisciapp.ebizonstg.com/api"
 subpath = "kiscience"
 prefix = "apps"
