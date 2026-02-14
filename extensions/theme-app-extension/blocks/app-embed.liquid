@@ -1,12 +1,12 @@
 {% comment %}
-  Kiscience App Embed
+  affiliatehub App Embed
   Automatically modifies native Shopify price display based on pricing rules
   Works like Massy - just enable in App Embeds, no blocks needed
 {% endcomment %}
 
-{% assign pricing_rules_metafield = shop.metafields.kiscience.pricing_rules %}
+{% assign pricing_rules_metafield = shop.metafields.affiliatehub.pricing_rules %}
 
-<script id="kiscience-config" type="application/json">
+<script id="affiliatehub-config" type="application/json">
 {
   "shop": "{{ shop.permanent_domain }}",
   "customerId": {% if customer %}"{{ customer.id }}"{% else %}null{% endif %},
@@ -17,35 +17,35 @@
 </script>
 
 {% if pricing_rules_metafield != blank %}
-<script id="kiscience-rules" type="application/json">
+<script id="affiliatehub-rules" type="application/json">
 {{ pricing_rules_metafield }}
 </script>
 {% endif %}
 
 <style>
-  /* Kiscience Custom Pricing - Side by side display like Massy */
-  .kiscience-active {
+  /* affiliatehub Custom Pricing - Side by side display like Massy */
+  .affiliatehub-active {
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: baseline !important;
   }
   
   /* Hide hidden price elements */
-  .kiscience-active .price__current--hidden,
-  .kiscience-active .price__compare-at--hidden {
+  .affiliatehub-active .price__current--hidden,
+  .affiliatehub-active .price__compare-at--hidden {
     display: none !important;
   }
   
   /* Show and style the compare-at (original) price - strikethrough, gray, bold */
-  .kiscience-active .price__compare-at {
+  .affiliatehub-active .price__compare-at {
     display: inline-block !important;
     order: 1 !important;
     text-decoration: none !important;
     /* margin-right: 1em !important; */
   }
   
-  .kiscience-active .price__compare-at .money,
-  .kiscience-active [data-price-compare] {
+  .affiliatehub-active .price__compare-at .money,
+  .affiliatehub-active [data-price-compare] {
     text-decoration: line-through !important;
     text-decoration-thickness: 2px !important;
     text-decoration-color: #888 !important;
@@ -55,33 +55,33 @@
   }
   
   /* Remove any duplicate strikethrough from parent elements */
-  .kiscience-active .price__compare-at--single,
-  .kiscience-active .price__compare-at span {
+  .affiliatehub-active .price__compare-at--single,
+  .affiliatehub-active .price__compare-at span {
     text-decoration: inherit !important;
   }
   
   /* Style the current (custom) price - red, bold, large */
-  .kiscience-active .price__current {
+  .affiliatehub-active .price__current {
     display: inline-block !important;
     order: 2 !important;
   }
   
-  .kiscience-active .price__current .money,
-  .kiscience-active [data-price] {
+  .affiliatehub-active .price__current .money,
+  .affiliatehub-active [data-price] {
     color: #dc2626 !important;
     font-weight: 700 !important;
     font-size: 36px !important;
     text-decoration: none !important;
   }
   
-  /* Hide other elements in kiscience-active container */
-  .kiscience-active .product__badge,
-  .kiscience-active .price__unit-price {
+  /* Hide other elements in affiliatehub-active container */
+  .affiliatehub-active .product__badge,
+  .affiliatehub-active .price__unit-price {
     display: none !important;
   }
   
   /* Generic styling for other themes */
-  .kiscience-original-price {
+  .affiliatehub-original-price {
     text-decoration: line-through !important;
     text-decoration-thickness: 2px !important;
     text-decoration-color: #888 !important;
@@ -91,23 +91,23 @@
     font-weight: 700 !important;
   }
   
-  .kiscience-custom-price {
+  .affiliatehub-custom-price {
     color: #dc2626 !important;
     font-weight: 700 !important;
     font-size: 36px !important;
     text-decoration: none !important;
   }
   
-  /* Kiscience inline price wrapper */
-  .kiscience-price-inline {
+  /* affiliatehub inline price wrapper */
+  .affiliatehub-price-inline {
     display: inline-flex !important;
     align-items: baseline !important;
   }
   
   /* Cart item pricing styles */
-  .cart-item .kiscience-compare-price,
-  .cart__item .kiscience-compare-price,
-  [data-cart-item] .kiscience-compare-price {
+  .cart-item .affiliatehub-compare-price,
+  .cart__item .affiliatehub-compare-price,
+  [data-cart-item] .affiliatehub-compare-price {
     text-decoration: line-through !important;
     text-decoration-thickness: 2px !important;
     text-decoration-color: #888 !important;
@@ -116,9 +116,9 @@
     font-size: inherit !important;
   }
   
-  .cart-item .kiscience-custom-price,
-  .cart__item .kiscience-custom-price,
-  [data-cart-item] .kiscience-custom-price {
+  .cart-item .affiliatehub-custom-price,
+  .cart__item .affiliatehub-custom-price,
+  [data-cart-item] .affiliatehub-custom-price {
     color: #dc2626 !important;
     font-weight: 700 !important;
     text-decoration: none !important;
@@ -130,22 +130,22 @@
   'use strict';
   
   // Parse config and rules
-  var configEl = document.getElementById('kiscience-config');
-  var rulesEl = document.getElementById('kiscience-rules');
+  var configEl = document.getElementById('affiliatehub-config');
+  var rulesEl = document.getElementById('affiliatehub-rules');
   
   var config = configEl ? JSON.parse(configEl.textContent) : {};
   var rules = rulesEl ? JSON.parse(rulesEl.textContent) : [];
   
   // Make available globally
-  window.KiscienceConfig = config;
-  window.KisciencePricingRules = rules;
+  window.affiliatehubConfig = config;
+  window.affiliatehubPricingRules = rules;
   
-  console.log('Kiscience: Loaded', rules.length, 'pricing rules');
-  console.log('Kiscience: Rules data:', JSON.stringify(rules, null, 2));
-  console.log('Kiscience: Config:', JSON.stringify(config, null, 2));
+  console.log('affiliatehub: Loaded', rules.length, 'pricing rules');
+  console.log('affiliatehub: Rules data:', JSON.stringify(rules, null, 2));
+  console.log('affiliatehub: Config:', JSON.stringify(config, null, 2));
   
   if (!rules.length) {
-    console.log('Kiscience: No pricing rules found in metafield');
+    console.log('affiliatehub: No pricing rules found in metafield');
     return;
   }
 
@@ -189,7 +189,7 @@
     var productIdNum = String(productId).replace(/\D/g, '');
     var variantIdNum = String(variantId).replace(/\D/g, '');
     
-    console.log('Kiscience: Checking product', productIdNum, 'against rule', rule.name);
+    console.log('affiliatehub: Checking product', productIdNum, 'against rule', rule.name);
     
     switch (rule.applyToProducts) {
       case 'all':
@@ -199,7 +199,7 @@
         var match = rule.specificProducts.some(function(p) {
           return String(p.id) === productIdNum;
         });
-        console.log('Kiscience: Specific products match:', match, rule.specificProducts.map(function(p) { return p.id; }));
+        console.log('affiliatehub: Specific products match:', match, rule.specificProducts.map(function(p) { return p.id; }));
         return match;
       case 'specific_variants':
         if (!rule.specificVariants) return false;
@@ -242,7 +242,7 @@
       var rule = rules[i];
       if (rule.status !== 'active') continue;
       if (customerMatches(rule) && productMatches(rule, productId, variantId, productTags, productCollections)) {
-        console.log('Kiscience: Found matching rule:', rule.name);
+        console.log('affiliatehub: Found matching rule:', rule.name);
         return rule;
       }
     }
@@ -326,7 +326,7 @@
       data.variantId = urlParams.get('variant');
     }
 
-    console.log('Kiscience: Product data:', data);
+    console.log('affiliatehub: Product data:', data);
     return data;
   }
 
@@ -334,7 +334,7 @@
   function applyCustomPricing() {
     var productData = getProductData();
     if (!productData.productId) {
-      console.log('Kiscience: No product ID found on page');
+      console.log('affiliatehub: No product ID found on page');
       return;
     }
 
@@ -346,12 +346,12 @@
     );
 
     if (!rule) {
-      console.log('Kiscience: No matching rule for this product/customer');
+      console.log('affiliatehub: No matching rule for this product/customer');
       return;
     }
 
     // Get original price from stored value or from a clean source
-    var originalPrice = window.KiscienceOriginalPrice;
+    var originalPrice = window.affiliatehubOriginalPrice;
     
     if (!originalPrice) {
       // Try to get from hidden price element first (more reliable)
@@ -369,28 +369,28 @@
       }
       
       if (!originalPrice) {
-        console.log('Kiscience: Could not extract original price');
+        console.log('affiliatehub: Could not extract original price');
         return;
       }
       
       // Store original price
-      window.KiscienceOriginalPrice = originalPrice;
+      window.affiliatehubOriginalPrice = originalPrice;
     }
 
     var customPrice = calculatePrice(rule, originalPrice);
-    console.log('Kiscience: Rule priceType:', rule.priceType);
-    console.log('Kiscience: Rule discountValue:', rule.discountValue);
-    console.log('Kiscience: Original price:', originalPrice);
-    console.log('Kiscience: Calculated custom price:', customPrice);
+    console.log('affiliatehub: Rule priceType:', rule.priceType);
+    console.log('affiliatehub: Rule discountValue:', rule.discountValue);
+    console.log('affiliatehub: Original price:', originalPrice);
+    console.log('affiliatehub: Calculated custom price:', customPrice);
 
     // Find all price containers and update them
     var priceContainers = document.querySelectorAll('.price.product__price, .product-pricing .price');
     
     priceContainers.forEach(function(container) {
       // Skip if already processed
-      if (container.classList.contains('kiscience-processed')) return;
-      container.classList.add('kiscience-processed');
-      container.classList.add('kiscience-active');
+      if (container.classList.contains('affiliatehub-processed')) return;
+      container.classList.add('affiliatehub-processed');
+      container.classList.add('affiliatehub-active');
       
       // Update compare-at (strikethrough) price
       var compareEls = container.querySelectorAll('[data-price-compare], .price__compare-at .money');
@@ -419,7 +419,7 @@
     document.querySelectorAll('[data-price]').forEach(function(el) {
       if (!el.closest('.price__compare-at') && !el.hasAttribute('data-price-compare')) {
         el.textContent = formatMoney(customPrice);
-        console.log('Kiscience: Updated price element:', el);
+        console.log('affiliatehub: Updated price element:', el);
       }
     });
 
@@ -429,11 +429,11 @@
     });
 
     // Store applied rule globally
-    window.KiscienceAppliedRule = rule;
-    window.KiscienceCustomPrice = customPrice;
-    window.KisciencePricingApplied = true;
+    window.affiliatehubAppliedRule = rule;
+    window.affiliatehubCustomPrice = customPrice;
+    window.affiliatehubPricingApplied = true;
     
-    console.log('Kiscience: Custom pricing applied successfully!');
+    console.log('affiliatehub: Custom pricing applied successfully!');
   }
 
   // Apply custom pricing to cart items
@@ -442,16 +442,16 @@
     var cartItems = document.querySelectorAll('.cart-item, .cart__item, [data-cart-item], .cart-item-row, .line-item');
     
     if (cartItems.length === 0) {
-      console.log('Kiscience: No cart items found');
+      console.log('affiliatehub: No cart items found');
       return;
     }
 
-    console.log('Kiscience: Found', cartItems.length, 'cart items');
+    console.log('affiliatehub: Found', cartItems.length, 'cart items');
 
     cartItems.forEach(function(item, index) {
       // Skip if already processed
-      if (item.classList.contains('kiscience-processed')) return;
-      item.classList.add('kiscience-processed');
+      if (item.classList.contains('affiliatehub-processed')) return;
+      item.classList.add('affiliatehub-processed');
 
       // Try to get product ID and variant ID from various sources
       var productId = null;
@@ -493,7 +493,7 @@
       }
 
       if (!productId) {
-        console.log('Kiscience: Could not find product ID for cart item', index);
+        console.log('affiliatehub: Could not find product ID for cart item', index);
         return;
       }
 
@@ -505,7 +505,7 @@
       var rule = findMatchingRule(productId, variantId, productTags, productCollections);
 
       if (!rule) {
-        console.log('Kiscience: No matching rule for cart item', productId);
+        console.log('affiliatehub: No matching rule for cart item', productId);
         return;
       }
 
@@ -540,13 +540,13 @@
       }
 
       if (!originalPrice) {
-        console.log('Kiscience: Could not extract original price for cart item', productId);
+        console.log('affiliatehub: Could not extract original price for cart item', productId);
         return;
       }
 
       // Calculate custom price
       var customPrice = calculatePrice(rule, originalPrice);
-      console.log('Kiscience: Cart item', productId, '- Original:', originalPrice, 'Custom:', customPrice);
+      console.log('affiliatehub: Cart item', productId, '- Original:', originalPrice, 'Custom:', customPrice);
 
       // Update price display in cart item
       var priceContainer = item.querySelector('.cart-item__price, .cart__price, [data-cart-item-price], .line-item__price, .price');
@@ -556,7 +556,7 @@
         if (!compareContainer) {
           // Create compare price element if it doesn't exist
           compareContainer = document.createElement('span');
-          compareContainer.className = 'price__compare-at kiscience-compare-price';
+          compareContainer.className = 'price__compare-at affiliatehub-compare-price';
           compareContainer.style.textDecoration = 'line-through';
           compareContainer.style.color = '#888';
           compareContainer.style.marginRight = '10px';
@@ -566,13 +566,13 @@
         compareContainer.style.display = 'inline-block';
 
         // Update current price
-        {% comment %} var currentPriceEl = priceContainer.querySelector('[data-price], .money:not(.kiscience-compare-price), .price__current'); {% endcomment %}
+        {% comment %} var currentPriceEl = priceContainer.querySelector('[data-price], .money:not(.affiliatehub-compare-price), .price__current'); {% endcomment %}
         var currentPriceEl = priceContainer.querySelector(
-          '[data-price], .money:not(.kiscience-compare-price), .price__current'
+          '[data-price], .money:not(.affiliatehub-compare-price), .price__current'
         );
         if (currentPriceEl) {
           // Don't update if it's the compare price
-          if (!currentPriceEl.closest('.price__compare-at') && !currentPriceEl.classList.contains('kiscience-compare-price')) {
+          if (!currentPriceEl.closest('.price__compare-at') && !currentPriceEl.classList.contains('affiliatehub-compare-price')) {
             currentPriceEl.textContent = formatMoney(customPrice);
             currentPriceEl.style.color = '#dc2626';
             currentPriceEl.style.fontWeight = '700';
@@ -580,7 +580,7 @@
         } else {
           // Create current price element if it doesn't exist
           var newPriceEl = document.createElement('span');
-          newPriceEl.className = 'kiscience-custom-price';
+          newPriceEl.className = 'affiliatehub-custom-price';
           newPriceEl.textContent = formatMoney(customPrice);
           newPriceEl.style.color = '#dc2626';
           newPriceEl.style.fontWeight = '700';
@@ -601,7 +601,7 @@
       }
     });
 
-    console.log('Kiscience: Cart pricing applied successfully!');
+    console.log('affiliatehub: Cart pricing applied successfully!');
   }
 
   // Run on page load
@@ -629,7 +629,7 @@
       if (window.location.pathname.includes('/cart') || window.location.pathname === '/cart') {
         // Reset processed state and re-apply pricing
         document.querySelectorAll('.cart-item, .cart__item, [data-cart-item]').forEach(function(item) {
-          item.classList.remove('kiscience-processed');
+          item.classList.remove('affiliatehub-processed');
         });
         setTimeout(applyCustomPricingToCart, 300);
       }
@@ -640,7 +640,7 @@
   document.addEventListener('cart:updated', function() {
     if (window.location.pathname.includes('/cart') || window.location.pathname === '/cart') {
       document.querySelectorAll('.cart-item, .cart__item, [data-cart-item]').forEach(function(item) {
-        item.classList.remove('kiscience-processed');
+        item.classList.remove('affiliatehub-processed');
       });
       setTimeout(applyCustomPricingToCart, 500);
     }
@@ -655,7 +655,7 @@
         setTimeout(function() {
           if (window.location.pathname.includes('/cart') || window.location.pathname === '/cart') {
             document.querySelectorAll('.cart-item, .cart__item, [data-cart-item]').forEach(function(item) {
-              item.classList.remove('kiscience-processed');
+              item.classList.remove('affiliatehub-processed');
             });
             applyCustomPricingToCart();
           }
@@ -694,7 +694,7 @@
         var cartItems = document.querySelectorAll('.cart-item, .cart__item, [data-cart-item]');
         var hasUnprocessed = false;
         cartItems.forEach(function(item) {
-          if (!item.classList.contains('kiscience-processed')) {
+          if (!item.classList.contains('affiliatehub-processed')) {
             hasUnprocessed = true;
           }
         });
@@ -714,7 +714,7 @@
 
 {% schema %}
 {
-  "name": "Kiscience Custom Pricing",
+  "name": "AffiliateHub Pricing",
   "target": "head",
   "settings": [
     {

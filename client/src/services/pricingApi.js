@@ -4,7 +4,7 @@
  */
 
 const API_BASE = '/api';
-const SHOP_STORAGE_KEY = 'kiscience_shop';
+const SHOP_STORAGE_KEY = 'affiliatehub_shop';
 
 // Helper to get shop from URL params or localStorage
 const getShopParam = () => {

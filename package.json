@@ -1,7 +1,7 @@
 {
-  "name": "kiscience-shopify-app",
+  "name": "affiliatehub-shopify-app",
   "version": "1.0.0",
-  "description": "Complete Shopify Custom App for kiscience",
+  "description": "Complete Shopify Custom App for affiliatehub",
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
@@ -15,11 +15,11 @@
   "keywords": [
     "shopify",
     "custom-app",
-    "kiscience",
+    "affiliatehub",
     "nodejs",
     "react"
   ],
-  "author": "kiscience",
+  "author": "affiliatehub",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

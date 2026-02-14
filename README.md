@@ -1,6 +1,6 @@
-# kiscience Shopify Custom App
+# affiliatehub Shopify Custom App
 
-A complete Shopify custom app built with Node.js backend and React frontend, designed specifically for kiscience.
+A complete Shopify custom app built with Node.js backend and React frontend, designed specifically for affiliatehub.
 
 ## Features
 
@@ -39,7 +39,7 @@ A complete Shopify custom app built with Node.js backend and React frontend, des
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd kiscience-shopify-app
+   cd affiliatehub-shopify-app
    ```
 
 2. **Install dependencies**
@@ -142,7 +142,7 @@ All webhooks include HMAC-SHA256 signature verification for security.
 ## Project Structure
 
 ```
-kiscience-shopify-app/
+affiliatehub-shopify-app/
 ├── server/                      # Backend Node.js server
 │   ├── index.js                # Main server file
 │   ├── controllers/            # Request handlers
@@ -230,4 +230,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Built with ❤️ for kiscience**
+**Built with ❤️ for affiliatehub**

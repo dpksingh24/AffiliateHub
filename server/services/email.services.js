@@ -33,7 +33,7 @@ class EmailService {
 
         const msg = {
             to,
-            from: process.env.SENDGRID_FROM_EMAIL || 'noreply@kiscience.com',
+            from: process.env.SENDGRID_FROM_EMAIL || 'noreply@affiliatehub.com',
             subject,
             text,
         };
@@ -68,7 +68,7 @@ Your application has been received, and it is currently under review by the admi
 We will notify you once the review process is complete.
 
 Best regards,
-KiScience Team`;
+affiliatehub Team`;
 
         const html = `
 <!DOCTYPE html>
@@ -97,10 +97,10 @@ KiScience Team`;
                 <strong>Your application has been received, and it is currently under review by the admin team.</strong>
             </div>
             <p>We will notify you once the review process is complete.</p>
-            <p>Best regards,<br><strong>KiScience Team</strong></p>
+            <p>Best regards,<br><strong>affiliatehub Team</strong></p>
         </div>
         <div class="footer">
-            <p>©Copyright 2026 KISCIENCE TECHNOLOGIES PVT. LTD.</p>
+            <p>©Copyright 2026 affiliatehub TECHNOLOGIES PVT. LTD.</p>
         </div>
     </div>
 </body>
@@ -120,7 +120,7 @@ Congratulations! Your application has been approved.
 Thank you for your patience during the review process.
 
 Best regards,
-KiScience Team`;
+affiliatehub Team`;
 
         const html = `
 <!DOCTYPE html>
@@ -148,10 +148,10 @@ KiScience Team`;
                 <strong>Congratulations! Your application has been approved.</strong>
             </div>
             <p>Thank you for your patience during the review process.</p>
-            <p>Best regards,<br><strong>KiScience Team</strong></p>
+            <p>Best regards,<br><strong>affiliatehub Team</strong></p>
         </div>
         <div class="footer">
-            <p>©Copyright 2026 KISCIENCE TECHNOLOGIES PVT. LTD.</p>
+            <p>©Copyright 2026 affiliatehub TECHNOLOGIES PVT. LTD.</p>
         </div>
     </div>
 </body>
@@ -174,7 +174,7 @@ After careful review, we regret to inform you that your application has not been
             text += `\n\nReason: ${reason}`;
         }
 
-        text += `\n\nBest regards,\nKiScience Team`;
+        text += `\n\nBest regards,\naffiliatehub Team`;
 
         let reasonHtml = '';
         if (reason) {
@@ -208,10 +208,10 @@ After careful review, we regret to inform you that your application has not been
                 After careful review, we regret to inform you that your application has not been approved at this time.
             </div>
             ${reasonHtml}
-            <p>Best regards,<br><strong>KiScience Team</strong></p>
+            <p>Best regards,<br><strong>affiliatehub Team</strong></p>
         </div>
         <div class="footer">
-            <p>©Copyright 2026 KISCIENCE TECHNOLOGIES PVT. LTD.</p>
+            <p>©Copyright 2026 affiliatehub TECHNOLOGIES PVT. LTD.</p>
         </div>
     </div>
 </body>

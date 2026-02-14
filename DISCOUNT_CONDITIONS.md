@@ -1,4 +1,4 @@
-# Kiscience Discount Conditions Guide
+# affiliatehub Discount Conditions Guide
 
 ## Overview
 Discounts are applied based on **BOTH customer conditions AND product conditions**. Both must match for a discount to apply.

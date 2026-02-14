@@ -247,7 +247,7 @@ app.get('/', (req, res) => {
   }
   
   // Fallback if React app not built
-  res.json({ message: 'kiscience Shopify App API - Please build the client app' });
+  res.json({ message: 'affiliatehub Shopify App API - Please build the client app' });
 });
 
 // Installation page route

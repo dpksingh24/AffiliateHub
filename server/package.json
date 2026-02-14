@@ -1,7 +1,7 @@
 {
-  "name": "kiscience-shopify-server",
+  "name": "affiliatehub-shopify-server",
   "version": "1.0.0",
-  "description": "Backend server for kiscience Shopify app",
+  "description": "Backend server for affiliatehub Shopify app",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

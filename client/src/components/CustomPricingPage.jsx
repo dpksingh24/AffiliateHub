@@ -1936,7 +1936,7 @@ const CustomPricingPage = ({ shop }) => {
             <Box paddingBlockStart="400">
               <InlineStack align="center">
                 <Text as="p" tone="subdued">
-                  ©Copyright 2026 KISCIENCE TECHNOLOGIES PVT. LTD.
+                  ©Copyright 2026 affiliatehub TECHNOLOGIES PVT. LTD.
                 </Text>
               </InlineStack>
             </Box>

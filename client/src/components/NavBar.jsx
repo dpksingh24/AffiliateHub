@@ -14,7 +14,7 @@ const NavBar = () => {
 
   // Preserve shop parameter when navigating
   const navigateWithShop = (path) => {
-    const shop = searchParams.get('shop') || localStorage.getItem('kiscience_shop') || ''
+    const shop = searchParams.get('shop') || localStorage.getItem('affiliatehub_shop') || ''
     if (shop) {
       navigate(`${path}?shop=${shop}`)
     } else {
@@ -58,7 +58,7 @@ const NavBar = () => {
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
           }}>
-            KiScience
+            affiliatehub
           </span>
         </div>
 

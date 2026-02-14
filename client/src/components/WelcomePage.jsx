@@ -106,7 +106,7 @@ const WelcomePage = ({ shop }) => {
                   />
                   <BlockStack gap="200">
                     <Text variant="heading2xl" as="h1" fontWeight="bold">
-                      <span style={{ color: 'white' }}>Welcome to KiScience</span>
+                      <span style={{ color: 'white' }}>Welcome to affiliatehub</span>
                     </Text>
                     <Text variant="bodyLg" as="p">
                       <span style={{ color: 'rgba(255,255,255,0.9)' }}>
@@ -325,12 +325,12 @@ const WelcomePage = ({ shop }) => {
                   <Text variant="headingMd" as="h3">Need help getting started?</Text>
                   <Text variant="bodyMd" tone="subdued">
                     Contact our support team at{' '}
-                    <a href="mailto:info@kiscience.com" style={{ color: '#667eea', textDecoration: 'none', fontWeight: '500' }}>
-                      info@kiscience.com
+                    <a href="mailto:info@affiliatehub.com" style={{ color: '#667eea', textDecoration: 'none', fontWeight: '500' }}>
+                      info@affiliatehub.com
                     </a>
                   </Text>
                 </BlockStack>
-                <Button url="mailto:info@kiscience.com">Contact Support</Button>
+                <Button url="mailto:info@affiliatehub.com">Contact Support</Button>
               </InlineStack>
             </div>
           </Layout.Section>

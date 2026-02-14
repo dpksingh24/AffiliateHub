@@ -3,7 +3,7 @@
  */
 
 const API_BASE = '/api';
-const SHOP_STORAGE_KEY = 'kiscience_shop';
+const SHOP_STORAGE_KEY = 'affiliatehub_shop';
 
 const getShopParam = () => {
   const urlParams = new URLSearchParams(window.location.search);

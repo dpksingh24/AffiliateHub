@@ -1,6 +1,6 @@
 # Ngrok Bypass Implementation
 
-This document describes how ngrok browser warning bypass is implemented in the kiscience Shopify app.
+This document describes how ngrok browser warning bypass is implemented in the affiliatehub Shopify app.
 
 ## Overview
 

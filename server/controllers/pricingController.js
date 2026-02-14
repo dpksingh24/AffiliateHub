@@ -69,7 +69,7 @@ const syncPricingRulesToShopMetafield = async (shop, accessToken, db) => {
     const variables = {
       metafields: [
         {
-          namespace: "kiscience",
+          namespace: "affiliatehub",
           key: "pricing_rules",
           value: metafieldValue,
           type: "json",
@@ -108,7 +108,7 @@ const syncPricingRulesToShopMetafield = async (shop, accessToken, db) => {
     variables.metafields[0].ownerId = shopGid;
 
     // Log what we're about to sync
-    console.log('Kiscience: Syncing metafield with data:', metafieldValue);
+    console.log('affiliatehub: Syncing metafield with data:', metafieldValue);
 
     const response = await fetch(`https://${shop}/admin/api/${process.env.SHOPIFY_API_VERSION}/graphql.json`, {
       method: 'POST',
@@ -122,7 +122,7 @@ const syncPricingRulesToShopMetafield = async (shop, accessToken, db) => {
     const data = await response.json();
     
     // Log the full response
-    console.log('Kiscience: Metafield sync response:', JSON.stringify(data, null, 2));
+    console.log('affiliatehub: Metafield sync response:', JSON.stringify(data, null, 2));
 
     if (data.errors) {
       console.error('GraphQL errors syncing metafield:', data.errors);
@@ -180,7 +180,7 @@ const syncRuleToDiscountMetafield = async (shop, accessToken, rule, discountId) 
     const variables = {
       metafields: [
         {
-          namespace: "$app:kiscience",
+          namespace: "$app:affiliatehub",
           key: "pricing-config",
           value: JSON.stringify(ruleConfig),
           type: "json",
@@ -655,7 +655,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
   const products = await getMatchingProducts(shop, accessToken, rule);
   
   if (products.length === 0) {
-    console.log('Kiscience: No matching products found for new_price calculation');
+    console.log('affiliatehub: No matching products found for new_price calculation');
     return [];
   }
   
@@ -667,7 +667,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
     
     // Skip if new price is higher than or equal to original price
     if (originalPrice <= newPrice) {
-      console.log(`Kiscience: Skipping product ${product.productId || product.variantId} - new price (${newPrice}) >= original price (${originalPrice})`);
+      console.log(`affiliatehub: Skipping product ${product.productId || product.variantId} - new price (${newPrice}) >= original price (${originalPrice})`);
       continue;
     }
     
@@ -760,7 +760,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
       
       if (result.automaticDiscountNode?.id) {
         discountIds.push(result.automaticDiscountNode.id);
-        console.log(`Kiscience: Created discount for product ${product.productId || product.variantId}: ${originalPrice} -> ${newPrice} (${amountOff} off)`);
+        console.log(`affiliatehub: Created discount for product ${product.productId || product.variantId}: ${originalPrice} -> ${newPrice} (${amountOff} off)`);
       }
     } catch (error) {
       console.error(`Error creating discount for product ${product.productId || product.variantId}:`, error);
@@ -768,7 +768,7 @@ const createPerProductDiscountsForNewPrice = async (shop, accessToken, rule, rul
     }
   }
   
-  console.log(`Kiscience: Created ${discountIds.length} discounts for new_price rule`);
+  console.log(`affiliatehub: Created ${discountIds.length} discounts for new_price rule`);
   return discountIds;
 };
 
@@ -781,7 +781,7 @@ const calculateNewPriceDiscount = async (shop, accessToken, rule) => {
   const products = await getMatchingProducts(shop, accessToken, rule);
   
   if (products.length === 0) {
-    console.log('Kiscience: No matching products found for new_price calculation');
+    console.log('affiliatehub: No matching products found for new_price calculation');
     return null;
   }
   
@@ -790,7 +790,7 @@ const calculateNewPriceDiscount = async (shop, accessToken, rule) => {
   
   if (maxOriginalPrice > 0 && maxOriginalPrice > newPrice) {
     const amountOff = maxOriginalPrice - newPrice;
-    console.log(`Kiscience: Converting new_price (${newPrice}) to amount_off (${amountOff}) based on max price (${maxOriginalPrice}) from ${products.length} products`);
+    console.log(`affiliatehub: Converting new_price (${newPrice}) to amount_off (${amountOff}) based on max price (${maxOriginalPrice}) from ${products.length} products`);
     return amountOff;
   }
   
@@ -816,7 +816,7 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
       // Note: We may need to update the database schema to store multiple discount IDs
       return discountIds[0];
     } else {
-      console.log('Kiscience: No discounts created for new_price - no valid products found');
+      console.log('affiliatehub: No discounts created for new_price - no valid products found');
       return null;
     }
   }
@@ -845,7 +845,7 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
     };
   } else {
     // Unknown price type - skip (shouldn't reach here as new_price is converted above)
-    console.log('Kiscience: Unknown effective price type:', effectivePriceType);
+    console.log('affiliatehub: Unknown effective price type:', effectivePriceType);
     return null;
   }
   
@@ -862,7 +862,7 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
   if ((rule.applyToCustomers === 'customer_tags' && rule.customerTags && rule.customerTags.length > 0) ||
       (rule.applyToCustomers === 'specific' && rule.specificCustomers && rule.specificCustomers.length > 0) ||
       rule.applyToCustomers === 'non_logged_in') {
-    console.log(`Kiscience: Skipping Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
+    console.log(`affiliatehub: Skipping Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
     console.log('         Reason: Shopify automatic discounts cannot filter by this customer condition');
     console.log('         The theme app extension will handle discount display/calculation on PDP');
     console.log('         At checkout: Discount will NOT appear (Shopify limitation)');
@@ -873,7 +873,7 @@ const createShopifyDiscount = async (shop, accessToken, rule, ruleId) => {
   // Note: 'logged_in' will apply at checkout to all users (can't filter by login status in Shopify)
   // The PDP will show correct filtered pricing via theme app extension
   if (rule.applyToCustomers === 'logged_in') {
-    console.log(`Kiscience: Creating Shopify discount for logged_in rule: ${rule.name}`);
+    console.log(`affiliatehub: Creating Shopify discount for logged_in rule: ${rule.name}`);
     console.log('         Note: At checkout, this discount will apply to all users (Shopify limitation)');
     console.log('         On PDP: Only logged-in customers see the discounted price (via theme app)');
   }
@@ -956,10 +956,10 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
     if (shopifyDiscountId) {
       try {
         await deleteShopifyDiscount(shop, accessToken, shopifyDiscountId);
-        console.log(`Kiscience: Deleted Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
+        console.log(`affiliatehub: Deleted Shopify discount for ${rule.applyToCustomers} rule: ${rule.name}`);
         console.log('         The theme app extension will handle filtering on PDP');
       } catch (error) {
-        console.error('Kiscience: Error deleting discount:', error);
+        console.error('affiliatehub: Error deleting discount:', error);
       }
     }
     return null;
@@ -971,9 +971,9 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
     if (shopifyDiscountId) {
       try {
         await deleteShopifyDiscount(shop, accessToken, shopifyDiscountId);
-        console.log('Kiscience: Deleted old discount for new_price update');
+        console.log('affiliatehub: Deleted old discount for new_price update');
       } catch (error) {
-        console.error('Kiscience: Error deleting old discount:', error);
+        console.error('affiliatehub: Error deleting old discount:', error);
         // Continue anyway - try to create new discounts
       }
     }
@@ -984,7 +984,7 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
       // Return the first discount ID for backward compatibility
       return discountIds[0];
     } else {
-      console.log('Kiscience: No discounts created for new_price update - no valid products found');
+      console.log('affiliatehub: No discounts created for new_price update - no valid products found');
       return null;
     }
   }
@@ -1013,7 +1013,7 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
     };
   } else {
     // Unknown price type - skip
-    console.log('Kiscience: Unknown effective price type:', effectivePriceType);
+    console.log('affiliatehub: Unknown effective price type:', effectivePriceType);
     return null;
   }
   
@@ -1076,7 +1076,7 @@ const updateShopifyDiscount = async (shop, accessToken, rule, shopifyDiscountId)
     );
     
     if (hasNotFoundError) {
-      console.log('Kiscience: Discount does not exist in Shopify - will create new one');
+      console.log('affiliatehub: Discount does not exist in Shopify - will create new one');
       return null; // Return null to indicate discount needs to be created
     }
     
@@ -1511,7 +1511,7 @@ const updatePricingRule = async (req, res, db) => {
             } else {
               // Discount was deleted or doesn't exist (e.g., price type changed to new_price, or discount was manually deleted)
               // Create a new discount instead
-              console.log('Kiscience: Discount not found or deleted - creating new discount');
+              console.log('affiliatehub: Discount not found or deleted - creating new discount');
               shopifyDiscountId = await createShopifyDiscount(shop, accessToken, { ...existingRule, ...updateData }, id);
               
               // Update the shopifyDiscountId in database
@@ -1534,7 +1534,7 @@ const updatePricingRule = async (req, res, db) => {
           } catch (updateErr) {
             // If update fails with "does not exist" error, create a new discount
             if (updateErr.message && updateErr.message.includes('does not exist')) {
-              console.log('Kiscience: Discount does not exist - creating new discount');
+              console.log('affiliatehub: Discount does not exist - creating new discount');
               shopifyDiscountId = await createShopifyDiscount(shop, accessToken, { ...existingRule, ...updateData }, id);
               
               if (shopifyDiscountId) {
@@ -1579,7 +1579,7 @@ const updatePricingRule = async (req, res, db) => {
         } catch (deactivateErr) {
           // If discount doesn't exist, just clear the ID from database
           if (deactivateErr.message && deactivateErr.message.includes('does not exist')) {
-            console.log('Kiscience: Discount does not exist when deactivating - clearing from database');
+            console.log('affiliatehub: Discount does not exist when deactivating - clearing from database');
             await db.collection('pricing_rules').updateOne(
               { _id: new ObjectId(id) },
               { $unset: { shopifyDiscountId: "" } }
