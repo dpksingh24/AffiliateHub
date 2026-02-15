@@ -1,7 +1,7 @@
 /**
  * Affiliate Area – tab switching and primary referral link for /pages/affiliate-area
  * Tabs: Affiliate URLs, Creatives, Statistics, Graphs, Referrals, Payouts, Visits, Settings, Lifetime Customers, Log out
- * Earnings and static data migrated from Practitioner Dashboard Affiliate tab.
+ * Affiliate Area: referral links, earnings, referrals, payouts, visits, settings.
  */
 (function () {
   const API_BASE_URL = 'https://kisciapp.ebizonstg.com';
@@ -573,7 +573,7 @@
     var placeholder = document.getElementById('affiliate-area-urls-content');
     if (el) el.innerHTML = '';
     if (placeholder) {
-      placeholder.innerHTML = '<p class="ks-affiliate-area__placeholder">No referral link found. You may need to be an approved affiliate. You can also check the <a href="/pages/affiliate-dashboard">Practitioner Dashboard</a>.</p>';
+      placeholder.innerHTML = '<p class="ks-affiliate-area__placeholder">No referral link found. You may need to be an approved affiliate.</p>';
       placeholder.style.display = 'block';
     }
   }
@@ -1592,7 +1592,7 @@
     var shop = (window.Shopify && window.Shopify.shop) || window.location.hostname;
     var email = getCustomerEmail();
     if (!customerId || !shop) {
-      showAccessDenied('You don\'t have access to this area. Please log in to your account.');
+      hideAccessDenied();
       hideLoadersShowPlaceholders();
       return;
     }
@@ -1605,7 +1605,7 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.success) {
-          showAccessDenied(data.error || 'You don\'t have access to this area. Please ensure you\'re logged in as an approved affiliate.');
+          hideAccessDenied();
           hideLoadersShowPlaceholders();
           return;
         }
@@ -1632,7 +1632,7 @@
         hideLoadersShowPlaceholders();
       })
       .catch(function () {
-        showAccessDenied('Unable to load affiliate area. Please try again or log in to your account.');
+        hideAccessDenied();
         hideLoadersShowPlaceholders();
       });
   }

@@ -29,7 +29,7 @@ import {
   DragHandleIcon,
   EditIcon
 } from '@shopify/polaris-icons'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   getAffiliateFormById,
   createAffiliateForm,
@@ -39,6 +39,7 @@ import NavBar from './NavBar'
 
 const AffiliateFormEditorPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
   const isEditing = !!id && id !== 'new'
 
@@ -122,6 +123,25 @@ const AffiliateFormEditorPage = () => {
   useEffect(() => {
     if (isEditing) fetchForm()
   }, [id])
+
+  // Apply template when creating new form from template picker
+  useEffect(() => {
+    if (!isEditing && location.state?.template) {
+      const t = location.state.template
+      setFormName(t.name || '')
+      setFormDescription(t.description || 'Application form for affiliates. You can edit this later.')
+      setFormStatus(t.status || 'Draft')
+      const fields = (t.fields || []).map((f, i) => ({
+        id: f.id || `field-${i}-${Date.now()}`,
+        type: f.type || 'text',
+        label: f.label || '',
+        name: f.name,
+        required: !!f.required,
+        placeholder: f.placeholder || undefined
+      }))
+      setFormFields(fields)
+    }
+  }, [])
 
   const fetchForm = async () => {
     try {

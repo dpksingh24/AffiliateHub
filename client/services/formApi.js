@@ -1,6 +1,5 @@
 /**
- * Form Builder API Service
- * Handles all API calls to the backend for forms and submissions
+ * API Service: affiliate forms, submissions, customer search/create
  */
 
 const API_BASE = '/api';
@@ -63,216 +62,18 @@ const apiRequest = async (endpoint, options = {}) => {
   return data;
 };
 
-// ===== FORM API =====
+// ===== CUSTOMER (used by affiliate submission approval) =====
 
-/**
- * Get all forms for the current shop
- */
-export const getForms = async () => {
-  return apiRequest('/forms');
-};
-
-/**
- * Get a single form by ID
- */
-export const getFormById = async (formId) => {
-  return apiRequest(`/forms/${formId}`);
-};
-
-/**
- * Create a new form
- */
-export const createForm = async (formData) => {
-  return apiRequest('/forms', {
-    method: 'POST',
-    body: JSON.stringify(formData),
-  });
-};
-
-/**
- * Update an existing form
- */
-export const updateForm = async (formId, formData) => {
-  return apiRequest(`/forms/${formId}`, {
-    method: 'PUT',
-    body: JSON.stringify(formData),
-  });
-};
-
-/**
- * Delete a form
- */
-export const deleteForm = async (formId) => {
-  return apiRequest(`/forms/${formId}`, {
-    method: 'DELETE',
-  });
-};
-
-/**
- * Duplicate a form
- */
-export const duplicateForm = async (formId) => {
-  return apiRequest(`/forms/${formId}/duplicate`, {
-    method: 'POST',
-  });
-};
-
-/**
- * Update form status (publish/unpublish)
- */
-export const updateFormStatus = async (formId, status) => {
-  return apiRequest(`/forms/${formId}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
-  });
-};
-
-// ===== SUBMISSION API =====
-
-/**
- * Get all submissions for a form
- */
-export const getFormSubmissions = async (formId, page = 1, limit = 20) => {
-  return apiRequest(`/forms/${formId}/submissions?page=${page}&limit=${limit}`);
-};
-
-/**
- * Get a single submission by ID
- */
-export const getSubmissionById = async (submissionId) => {
-  return apiRequest(`/submissions/${submissionId}`);
-};
-
-/**
- * Delete a submission
- */
-export const deleteSubmission = async (submissionId) => {
-  return apiRequest(`/submissions/${submissionId}`, {
-    method: 'DELETE',
-  });
-};
-
-/**
- * Delete multiple submissions
- */
-export const deleteMultipleSubmissions = async (submissionIds) => {
-  return apiRequest('/submissions/delete-multiple', {
-    method: 'POST',
-    body: JSON.stringify({ ids: submissionIds }),
-  });
-};
-
-/**
- * Export submissions as CSV (returns download URL)
- */
-export const exportSubmissions = (formId) => {
-  const shop = getShopParam();
-  return `${API_BASE}/forms/${formId}/submissions/export?shop=${shop}`;
-};
-
-// ===== APPROVAL API =====
-
-/**
- * Search for a Shopify customer by email
- */
 export const searchCustomerByEmail = async (email) => {
   return apiRequest(`/customers/search?email=${encodeURIComponent(email)}`);
 };
 
-/**
- * Create a new Shopify customer
- */
 export const createCustomer = async (email, firstName, lastName, tags = '') => {
   return apiRequest('/customers/create', {
     method: 'POST',
     body: JSON.stringify({ email, firstName, lastName, tags }),
   });
 };
-
-/**
- * Add a tag to a Shopify customer
- */
-export const addTagToCustomer = async (customerId, tag) => {
-  return apiRequest('/customers/add-tag', {
-    method: 'POST',
-    body: JSON.stringify({ customerId, tag }),
-  });
-};
-
-/**
- * Remove a tag from a Shopify customer (e.g. when deleting a submission that had a tag added).
- * Customer remains in the store; only the tag is removed.
- */
-export const removeTagFromCustomer = async (customerId, tag) => {
-  return apiRequest('/customers/remove-tag', {
-    method: 'POST',
-    body: JSON.stringify({ customerId, tag }),
-  });
-};
-
-/**
- * Delete a Shopify customer (e.g. when deleting an approved submission).
- * Prefer removeTagFromCustomer when only the tag should be removed and customer kept.
- */
-export const deleteCustomer = async (customerId) => {
-  return apiRequest('/customers/delete', {
-    method: 'POST',
-    body: JSON.stringify({ customerId }),
-  });
-};
-
-/**
- * Approve a submission. Optionally attach a file to the approval email.
- * @param {string} submissionId
- * @param {string|null} shopifyCustomerId
- * @param {string|null} tagAdded
- * @param {File|null} attachment - optional file to attach to the approval email
- */
-export const approveSubmission = async (submissionId, shopifyCustomerId = null, tagAdded = null, attachment = null) => {
-  if (attachment) {
-    const shop = getShopParam();
-    const url = new URL(`${window.location.origin}${API_BASE}/submissions/${submissionId}/approve`);
-    if (shop) url.searchParams.set('shop', shop);
-    const form = new FormData();
-    if (shopifyCustomerId != null) form.append('shopifyCustomerId', String(shopifyCustomerId));
-    if (tagAdded != null) form.append('tagAdded', String(tagAdded));
-    form.append('attachment', attachment);
-    const res = await fetch(url.toString(), { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.message || 'API request failed');
-    return data;
-  }
-  return apiRequest(`/submissions/${submissionId}/approve`, {
-    method: 'POST',
-    body: JSON.stringify({ shopifyCustomerId, tagAdded }),
-  });
-};
-
-/**
- * Reject a submission. Optionally attach a file to the rejection email.
- * @param {string} submissionId
- * @param {string|null} reason
- * @param {File|null} attachment - optional file to attach to the rejection email
- */
-export const rejectSubmission = async (submissionId, reason = null, attachment = null) => {
-  if (attachment) {
-    const shop = getShopParam();
-    const url = new URL(`${window.location.origin}${API_BASE}/submissions/${submissionId}/reject`);
-    if (shop) url.searchParams.set('shop', shop);
-    const form = new FormData();
-    if (reason != null) form.append('reason', String(reason));
-    form.append('attachment', attachment);
-    const res = await fetch(url.toString(), { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.message || 'API request failed');
-    return data;
-  }
-  return apiRequest(`/submissions/${submissionId}/reject`, {
-    method: 'POST',
-    body: JSON.stringify({ reason }),
-  });
-};
-
 
 // ===== AFFILIATE FORM API =====
 
@@ -470,25 +271,8 @@ export const getAffiliateDashboard = async (affiliateId) => {
 
 
 export default {
-  getForms,
-  getFormById,
-  createForm,
-  updateForm,
-  deleteForm,
-  duplicateForm,
-  updateFormStatus,
-  getFormSubmissions,
-  getSubmissionById,
-  deleteSubmission,
-  deleteMultipleSubmissions,
-  exportSubmissions,
   searchCustomerByEmail,
   createCustomer,
-  addTagToCustomer,
-  approveSubmission,
-  rejectSubmission,
-
-  // ===== AFFILIATE FORM API =====
   getAffiliateForms,
   getAffiliateFormById,
   createAffiliateForm,

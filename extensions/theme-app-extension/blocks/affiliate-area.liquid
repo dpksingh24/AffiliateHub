@@ -3,22 +3,6 @@
   Add this section to your affiliate-area page. Uses affiliate-area.js for tab switching.
 {% endcomment %}
 
-<div id="affiliate-area-error" class="ks-error-state" style="display: none;">
-  <div class="ks-error-state__card">
-    <div class="ks-error-state__icon" aria-hidden="true">
-      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-      </svg>
-    </div>
-    <h2 class="ks-error-state__title">Access Denied</h2>
-    <p id="affiliate-area-error-message" class="ks-error-state__message">
-      You don't have access to this area. Please ensure you're logged in as an affiliate.
-    </p>
-    <a href="/account" class="ks-error-state__btn ks-btn">Back to Login Page</a>
-  </div>
-</div>
-
 <div class="ks-affiliate-area ks-dashboard" id="affiliate-area-container">
   <!-- Mobile header with hamburger (visible on small screens only) -->
   <header class="ks-affiliate-area__mobile-header">
@@ -31,7 +15,7 @@
   </header>
   <!-- Backdrop when nav is open (mobile) -->
   <div class="ks-affiliate-area__nav-backdrop" id="affiliate-area-nav-backdrop"></div>
-  <!-- Left sidebar: profile + vertical nav (same layout as Practitioner Dashboard) -->
+  <!-- Left sidebar: profile + vertical nav -->
   <aside class="ks-sidebar" id="affiliate-area-sidebar" role="navigation" aria-label="Affiliate area sections">
     <div class="ks-sidebar__profile">
       <h3 class="ks-sidebar__name" id="affiliate-area-sidebar-name"></h3>

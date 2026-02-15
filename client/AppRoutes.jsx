@@ -5,13 +5,10 @@ import { NavigationMenu as NavigationMenuAction } from "@shopify/app-bridge/acti
 import WelcomePage from "./components/WelcomePage";
 import InstallationPage from "./components/InstallationPage";
 import LoadingSpinner from "./components/LoadingSpinner";
-import FormBuilderPage from "./components/FormBuilderPage";
-import FormEditorPage from "./components/FormEditorPage";
-import FormSubmissionsPage from "./components/FormSubmissionsPage";
-import CustomPricingPage from "./components/CustomPricingPage";
 import { useShopifyAuth } from "./hooks/useShopifyAuth";
 import AffiliateFormPage from "./components/AffiliateFormPage";
 import AffiliateFormEditorPage from "./components/AffiliateFormEditorPage";
+import AffiliateFormTemplatePicker from "./components/AffiliateFormTemplatePicker";
 import AffiliateFormSubmissionsPage from "./components/AffiliateFormSubmissionsPage";
 import AdminSettingsPage from "./components/AdminSettingsPage";
 import PayoutsPage from "./components/PayoutsPage";
@@ -38,20 +35,19 @@ function NavigationMenuSetup() {
     try {
       console.log("NavigationMenuSetup: Creating navigation menu via actions API");
       
-      const formBuilderLink = {
-        label: "Form Builder",
-        destination: "/form-builder",
+      const referralsLink = {
+        label: "Referrals",
+        destination: "/referrals",
       };
 
       const navMenu = NavigationMenuAction.create(app, {
-        items: [formBuilderLink],
+        items: [referralsLink],
       });
 
       console.log("NavigationMenuSetup: Navigation menu created", navMenu);
 
-      // Set active based on current path
-      if (location.pathname === "/form-builder") {
-        navMenu.set({ active: formBuilderLink });
+      if (location.pathname === "/referrals" || location.pathname.startsWith("/referrals/")) {
+        navMenu.set({ active: referralsLink });
       }
 
     } catch (error) {
@@ -89,7 +85,7 @@ function AppRoutes() {
 
   console.log("=== NavigationMenu Debug ===");
   console.log("Rendering NavigationMenu with links:", [
-    { label: "Form Builder", destination: "/form-builder" },
+    { label: "Referrals", destination: "/referrals" },
     { label: "Admin Settings", destination: "/admin/settings" },
   ]);
   console.log("============================");
@@ -98,10 +94,6 @@ function AppRoutes() {
     <Storename.Provider value={{ STORENAME: shop }}>
       <NavigationMenu
         navigationLinks={[
-          {
-            label: "Form Builder",
-            destination: "/form-builder",
-          },
           {
             label: "Referrals",
             destination: "/referrals",
@@ -143,62 +135,22 @@ function AppRoutes() {
             )
           }
         />
-        <Route
-          path="/form-builder"
-          element={
-            isInstalled ? (
-              <FormBuilderPage shop={shop} />
-            ) : (
-              <InstallationPage shop={shop} />
-            )
-          }
-        />
-        <Route
-          path="/form-builder/new"
-          element={
-            isInstalled ? (
-              <FormEditorPage shop={shop} />
-            ) : (
-              <InstallationPage shop={shop} />
-            )
-          }
-        />
-        <Route
-          path="/form-builder/:id"
-          element={
-            isInstalled ? (
-              <FormEditorPage shop={shop} />
-            ) : (
-              <InstallationPage shop={shop} />
-            )
-          }
-        />
-        <Route
-          path="/form-builder/:id/submissions"
-          element={
-            isInstalled ? (
-              <FormSubmissionsPage shop={shop} />
-            ) : (
-              <InstallationPage shop={shop} />
-            )
-          }
-        />
-        <Route
-          path="/custom-pricing"
-          element={
-            isInstalled ? (
-              <CustomPricingPage shop={shop} />
-            ) : (
-              <InstallationPage shop={shop} />
-            )
-          }
-        />
         {/* affiliate form */}
         <Route
           path="/affiliate-form"
           element={
             isInstalled ? (
               <AffiliateFormPage shop={shop} />
+            ) : (
+              <InstallationPage shop={shop} />
+            )
+          }
+        />
+        <Route
+          path="/affiliate-form/templates"
+          element={
+            isInstalled ? (
+              <AffiliateFormTemplatePicker />
             ) : (
               <InstallationPage shop={shop} />
             )

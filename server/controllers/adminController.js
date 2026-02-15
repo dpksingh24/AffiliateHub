@@ -147,7 +147,7 @@ const putEmailTemplatesHandler = async (req, res, db) => {
 
 const AFFILIATE_AREA_GREETING_DEFAULT = `We have paid the referrals earned until 30 October. Next payment date is 17–20 January for referrals earned during the month of November.
 
-Please make sure your PayPal payment email is included in your affiliate account. If not, you can set it up under the Settings tab, in the Affiliate Area, in your Practitioner account.`;
+Please make sure your PayPal payment email is included in your affiliate account. If not, you can set it up under the Settings tab in the Affiliate Area.`;
 
 /**
  * Get affiliate area greeting message for admin

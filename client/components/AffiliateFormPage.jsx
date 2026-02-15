@@ -1354,7 +1354,7 @@ const AffiliateFormPage = ({ shop }) => {
         primaryAction={{
           content: 'Create new affiliate form',
           icon: PlusIcon,
-          onAction: () => navigate('/affiliate-form/new')
+          onAction: () => navigate('/affiliate-form/templates')
         }}
         secondaryActions={[
           { content: 'Refresh', icon: RefreshIcon, onAction: fetchAffiliateForms }
@@ -1390,7 +1390,7 @@ const AffiliateFormPage = ({ shop }) => {
                 heading="Create your first affiliate form"
                 action={{
                   content: 'Create affiliate form',
-                  onAction: () => navigate('/affiliate-form/new')
+                  onAction: () => navigate('/affiliate-form/templates')
                 }}
                 image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
               >

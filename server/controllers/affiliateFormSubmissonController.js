@@ -1180,7 +1180,7 @@ const approveAffiliateFormSubmission = async (req, res, db) => {
             console.log('✉️ Approve: resolved email ->', toEmail);
             if (toEmail) {
                 const template = await getEmailTemplate(db, form.shop, 'affiliate_approval');
-                const dashboardUrl = form.shop ? `https://${form.shop}/pages/affiliate-dashboard` : undefined;
+                const dashboardUrl = form.shop ? `https://${form.shop}/pages/affiliate-area` : undefined;
                 const attachment = req.file ? { filename: req.file.originalname, content: req.file.buffer, contentType: req.file.mimetype } : null;
                 const emailResult = await EmailService.sendAffiliateApprovalEmail(
                     toEmail,

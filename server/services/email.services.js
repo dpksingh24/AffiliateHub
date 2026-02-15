@@ -355,7 +355,7 @@ class EmailService {
 
     static async sendAffiliateApprovalEmail(to, formName, submitterName = null, templateOverride = null, dashboardUrl = null, attachment = null) {
         const name = submitterName || 'Applicant';
-        const dashboard = dashboardUrl || 'https://kiscience.myshopify.com/pages/affiliate-dashboard';
+        const dashboard = dashboardUrl || 'https://kiscience.myshopify.com/pages/affiliate-area';
         const vars = { name, formName, dashboardUrl: dashboard };
         let subject, text, html;
         if (templateOverride && (templateOverride.subject != null || templateOverride.html != null)) {
@@ -415,7 +415,7 @@ class EmailService {
       <tr><td style="padding: 6px 12px 6px 0; color: #6b7280;">Order total</td><td style="padding: 6px 0;">${currency} ${amount}</td></tr>
       <tr><td style="padding: 6px 12px 6px 0; color: #6b7280;">Your commission</td><td style="padding: 6px 0;"><strong>${currency} ${commissionAmount}</strong></td></tr>
     </table>
-    <p>You can view your referrals and earnings in your <a href="https://kiscience.myshopify.com/pages/affiliate-dashboard">affiliate dashboard</a>.</p>
+    <p>You can view your referrals and earnings in your <a href="https://kiscience.myshopify.com/pages/affiliate-area">affiliate area</a>.</p>
     <p>Best regards,<br>KiScience Team</p>
   </div>
 </body>

@@ -10,8 +10,6 @@ const NavBar = () => {
 
   const navItems = [
     { label: 'Home', path: '/running' },
-    { label: 'Form Builder', path: '/form-builder' },
-    { label: 'Custom Pricing', path: '/custom-pricing' },
     { label: 'Affiliate Form', path: '/affiliate-form' },
     {
       key: 'referrals-payouts',
@@ -90,7 +88,6 @@ const NavBar = () => {
             const isActive = hasSubitems
               ? isDropdownChildActive(item.subitems)
               : (location.pathname === item.path ||
-                  (item.path === '/form-builder' && location.pathname.startsWith('/form-builder')) ||
                   (item.path === '/admin/settings' && location.pathname.startsWith('/admin/settings')))
 
             if (hasSubitems) {

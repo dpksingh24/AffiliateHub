@@ -3,7 +3,7 @@
 client_id = "4b311d4c607f20e51fc0d629e2269017"
 name = "AffiliateHub"
 handle = "affiliatehub"
-application_url = "https://arabia-mason-linda-permits.trycloudflare.com"
+application_url = "https://rooms-autos-aware-anyone.trycloudflare.com"
 embedded = true
 
 [access_scopes]
@@ -38,14 +38,14 @@ directories = ["extensions/*"]
 
 [auth]
 redirect_urls = [
-  "https://arabia-mason-linda-permits.trycloudflare.com/running",
-  "https://arabia-mason-linda-permits.trycloudflare.com/auth/callback"
+  "https://rooms-autos-aware-anyone.trycloudflare.com/running",
+  "https://rooms-autos-aware-anyone.trycloudflare.com/auth/callback"
 ]
 
 [pos]
 embedded = false
 
 [app_proxy]
-url = "https://arabia-mason-linda-permits.trycloudflare.com/api"
+url = "https://rooms-autos-aware-anyone.trycloudflare.com/api"
 subpath = "affiliatehub"
 prefix = "apps"

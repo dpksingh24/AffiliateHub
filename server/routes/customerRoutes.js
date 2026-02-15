@@ -22,11 +22,7 @@ module.exports = (db) => {
     getCustomerOrders,
     getCustomerOrderById,
     getCustomerPaymentMethods,
-    deleteCustomerPaymentMethod,
-    getWishlistProducts,
-    getCustomerWishlist,
-    addToCustomerWishlist,
-    removeFromCustomerWishlist
+    deleteCustomerPaymentMethod
   } = require('../controllers/customerController');
 
   router.get('/profile', (req, res) => getCustomerProfile(req, res, db));
@@ -48,12 +44,6 @@ module.exports = (db) => {
 
   router.get('/payment-methods', (req, res) => getCustomerPaymentMethods(req, res, db));
   router.delete('/payment-methods/:paymentMethodId', (req, res) => deleteCustomerPaymentMethod(req, res, db));
-
-  router.get('/wishlist-products', (req, res) => getWishlistProducts(req, res, db));
-
-  router.get('/wishlist', (req, res) => getCustomerWishlist(req, res, db));
-  router.post('/wishlist', (req, res) => addToCustomerWishlist(req, res, db));
-  router.delete('/wishlist', (req, res) => removeFromCustomerWishlist(req, res, db));
 
   return router;
 };

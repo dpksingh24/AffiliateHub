@@ -196,10 +196,10 @@ const connectDB = async () => {
     }
     console.log('Connected to MongoDB');
     
-    // Register Form Builder API routes
+    // Register API routes
     const formRoutes = createFormRoutes(db);
     app.use('/api', formRoutes);
-    console.log('Form Builder API routes registered');
+    console.log('API routes registered');
 
     // Register Admin API routes
     const adminRoutes = createAdminRoutes(db);

@@ -14,25 +14,20 @@ import {
   Spinner
 } from '@shopify/polaris'
 import {
-  NoteIcon,
-  DiscountFilledIcon,
   PlusIcon,
   ChartVerticalFilledIcon,
   PersonFilledIcon,
-  ArrowRightIcon,
-  CheckCircleIcon
+  ArrowRightIcon
 } from '@shopify/polaris-icons'
 import { useNavigate } from 'react-router-dom'
 import logoIcon from '../assets/images/logo.png'
 import NavBar from './NavBar'
-import { getForms, getAffiliateForms } from '../services/formApi'
-import { getPricingRules } from '../services/pricingApi'
+import { getAffiliateForms } from '../services/formApi'
+// Template picker: user can select a pre-created form template when creating an affiliate form
 
 const WelcomePage = ({ shop }) => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [formsData, setFormsData] = useState({ total: 0, active: 0, submissions: 0, recentForms: [] })
-  const [pricingData, setPricingData] = useState({ total: 0, active: 0, recentRules: [] })
   const [affiliateData, setAffiliateData] = useState({ total: 0, active: 0, submissions: 0, recentForms: [] })
   const [referralData, setReferralData] = useState({
     referralsTotal: 0,
@@ -50,22 +45,6 @@ const WelcomePage = ({ shop }) => {
       setLoading(true)
       
       try {
-        const formsResponse = await getForms()
-        const forms = formsResponse.forms || []
-        const activeForms = forms.filter(f => f.status === 'Active')
-        const totalSubmissions = forms.reduce((acc, f) => acc + (f.totalSubmissions || 0), 0)
-        
-        setFormsData({
-          total: forms.length,
-          active: activeForms.length,
-          submissions: totalSubmissions,
-          recentForms: forms.slice(0, 3)
-        })
-      } catch (err) {
-        console.error('Error fetching forms:', err)
-      }
-
-      try {
         const affiliateResponse = await getAffiliateForms()
         const affiliateForms = affiliateResponse.forms || affiliateResponse || []
         const affiliateList = Array.isArray(affiliateForms) ? affiliateForms : []
@@ -79,19 +58,6 @@ const WelcomePage = ({ shop }) => {
         })
       } catch (err) {
         console.error('Error fetching affiliate forms:', err)
-      }
-
-      try {
-        const pricingResponse = await getPricingRules()
-        const rules = pricingResponse.rules || []
-        const activeRules = rules.filter(r => r.status === 'active')
-        setPricingData({
-          total: rules.length,
-          active: activeRules.length,
-          recentRules: rules.slice(0, 3)
-        })
-      } catch (err) {
-        console.error('Error fetching pricing rules:', err)
       }
 
       if (shop) {
@@ -175,7 +141,7 @@ const WelcomePage = ({ shop }) => {
                     </Text>
                     <Text variant="bodyLg" as="p">
                       <span style={{ color: 'rgba(255,255,255,0.9)' }}>
-                        Your all-in-one platform for forms and custom pricing management
+                        Your all-in-one platform for affiliate forms and referrals
                       </span>
                     </Text>
                   </BlockStack>
@@ -194,10 +160,6 @@ const WelcomePage = ({ shop }) => {
                     marginTop: '30px'
                   }}>
                     {[
-                      { label: 'Total Forms', value: formsData.total, icon: NoteIcon },
-                      { label: 'Active Forms', value: formsData.active, icon: CheckCircleIcon },
-                      { label: 'Submissions', value: formsData.submissions, icon: PersonFilledIcon },
-                      { label: 'Pricing Rules', value: pricingData.total, icon: DiscountFilledIcon },
                       { label: 'Affiliate Forms', value: affiliateData.total, icon: PersonFilledIcon },
                       { label: 'Referrals', value: referralData.referralsTotal, icon: ChartVerticalFilledIcon }
                     ].map((stat, index) => (
@@ -232,298 +194,6 @@ const WelcomePage = ({ shop }) => {
               gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: '16px'
             }}>
-              {/* Form Builder Card */}
-              <div style={{
-                background: 'white',
-                borderRadius: '16px',
-                border: '1px solid #e5e7eb',
-                overflow: 'hidden',
-                transition: 'box-shadow 0.3s, transform 0.3s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.1)'
-                e.currentTarget.style.transform = 'translateY(-4px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = 'none'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}
-              onClick={() => navigate('/form-builder')}
-              >
-                {/* Card Header */}
-                <div style={{
-                  background: '#5f9ea0',
-                  padding: '24px',
-                  color: 'white'
-                }}>
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="300" blockAlign="center">
-                      <div style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        display: 'flex'
-                      }}>
-                        <Icon source={NoteIcon} />
-                      </div>
-                      <BlockStack gap="100">
-                        <Text variant="headingLg" as="h2" fontWeight="bold">
-                          <span style={{ color: 'white' }}>Form Builder</span>
-                        </Text>
-                        <Text variant="bodySm">
-                          <span style={{ color: 'rgba(255,255,255,0.8)' }}>Create & manage forms</span>
-                        </Text>
-                      </BlockStack>
-                    </InlineStack>
-                    <div style={{
-                      background: 'rgba(255,255,255,0.2)',
-                      borderRadius: '50%',
-                      padding: '8px',
-                      display: 'flex'
-                    }}>
-                      <Icon source={ArrowRightIcon} />
-                    </div>
-                  </InlineStack>
-                </div>
-
-                {/* Card Body */}
-                <div style={{ padding: '20px' }}>
-                  {loading ? (
-                    <div style={{ textAlign: 'center', padding: '20px' }}>
-                      <Spinner size="small" />
-                    </div>
-                  ) : formsData.recentForms.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-                      <div style={{
-                        width: '60px',
-                        height: '60px',
-                        background: '#f0f7ff',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 16px'
-                      }}>
-                        <Icon source={NoteIcon} tone="info" />
-                      </div>
-                      <Text variant="bodyMd" tone="subdued">No forms created yet</Text>
-                      <div style={{ marginTop: '16px' }}>
-                        <Button 
-                          variant="primary"
-                          icon={PlusIcon}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate('/form-builder/new')
-                          }}
-                        >
-                          Create First Form
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <BlockStack gap="300">
-                      <Text variant="bodySm" tone="subdued" fontWeight="semibold">RECENT FORMS</Text>
-                      {formsData.recentForms.map((form) => (
-                        <div 
-                          key={form._id || form.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '14px 16px',
-                            background: '#f8fafc',
-                            borderRadius: '10px',
-                            borderLeft: `4px solid ${form.status === 'Active' ? '#22c55e' : '#94a3b8'}`
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate(`/form-builder/${form._id || form.id}/submissions`)
-                          }}
-                        >
-                          <BlockStack gap="100">
-                            <Text variant="bodyMd" fontWeight="semibold">{form.name}</Text>
-                            <InlineStack gap="200">
-                              <Badge tone={form.status === 'Active' ? 'success' : 'subdued'} size="small">
-                                {form.status || 'Draft'}
-                              </Badge>
-                              <Text variant="bodySm" tone="subdued">
-                                {form.totalSubmissions || 0} submissions
-                              </Text>
-                            </InlineStack>
-                          </BlockStack>
-                          <Icon source={ChartVerticalFilledIcon} tone="subdued" />
-                        </div>
-                      ))}
-                      <Button 
-                        variant="primary"
-                        icon={PlusIcon}
-                        fullWidth
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate('/form-builder/new')
-                        }}
-                      >
-                        Create New Form
-                      </Button>
-                    </BlockStack>
-                  )}
-                </div>
-              </div>
-
-              {/* Custom Pricing Card */}
-              <div style={{
-                background: 'white',
-                borderRadius: '16px',
-                border: '1px solid #e5e7eb',
-                overflow: 'hidden',
-                transition: 'box-shadow 0.3s, transform 0.3s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.1)'
-                e.currentTarget.style.transform = 'translateY(-4px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = 'none'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}
-              onClick={() => navigate('/custom-pricing')}
-              >
-                <div style={{
-                  background: '#394142',
-                  padding: '24px',
-                  color: 'white'
-                }}>
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="300" blockAlign="center">
-                      <div style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        display: 'flex'
-                      }}>
-                        <Icon source={DiscountFilledIcon} />
-                      </div>
-                      <BlockStack gap="100">
-                        <Text variant="headingLg" as="h2" fontWeight="bold">
-                          <span style={{ color: 'white' }}>Custom Pricing</span>
-                        </Text>
-                        <Text variant="bodySm">
-                          <span style={{ color: 'rgba(255,255,255,0.8)' }}>Manage pricing rules</span>
-                        </Text>
-                      </BlockStack>
-                    </InlineStack>
-                    <div style={{
-                      background: 'rgba(255,255,255,0.2)',
-                      borderRadius: '50%',
-                      padding: '8px',
-                      display: 'flex'
-                    }}>
-                      <Icon source={ArrowRightIcon} />
-                    </div>
-                  </InlineStack>
-                </div>
-
-                <div style={{ padding: '20px' }}>
-                  {loading ? (
-                    <div style={{ textAlign: 'center', padding: '20px' }}>
-                      <Spinner size="small" />
-                    </div>
-                  ) : pricingData.recentRules.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-                      <div style={{
-                        width: '60px',
-                        height: '60px',
-                        background: '#fef3e8',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 16px'
-                      }}>
-                        <Icon source={DiscountFilledIcon} tone="warning" />
-                      </div>
-                      <Text variant="bodyMd" tone="subdued">No pricing rules created yet</Text>
-                      <div style={{ marginTop: '16px' }}>
-                        <Button 
-                          variant="primary"
-                          icon={PlusIcon}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate('/custom-pricing')
-                          }}
-                        >
-                          Create First Rule
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <BlockStack gap="300">
-                      <Text variant="bodySm" tone="subdued" fontWeight="semibold">ACTIVE RULES</Text>
-                      {pricingData.recentRules.map((rule) => (
-                        <div 
-                          key={rule.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '14px 16px',
-                            background: '#f8fafc',
-                            borderRadius: '10px',
-                            borderLeft: `4px solid ${rule.status === 'active' ? '#f59e0b' : '#94a3b8'}`
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigate('/custom-pricing')
-                          }}
-                        >
-                          <BlockStack gap="100">
-                            <Text variant="bodyMd" fontWeight="semibold">{rule.name}</Text>
-                            <InlineStack gap="200">
-                              <Badge tone="warning" size="small">
-                                {rule.priceType === 'amount_off'
-                                  ? `$${rule.discountValue} off`
-                                  : rule.priceType === 'new_price'
-                                    ? `$${rule.discountValue} fixed`
-                                    : `${rule.discountValue}% off`}
-                              </Badge>
-                              <Badge tone={rule.status === 'active' ? 'success' : 'subdued'} size="small">
-                                {rule.status === 'active' ? 'Active' : 'Inactive'}
-                              </Badge>
-                            </InlineStack>
-                          </BlockStack>
-                          <div style={{
-                            background: '#fef3c7',
-                            borderRadius: '8px',
-                            padding: '8px 12px',
-                            fontWeight: 'bold',
-                            color: '#d97706'
-                          }}>
-                            {rule.priceType === 'amount_off'
-                              ? `-$${rule.discountValue}`
-                              : rule.priceType === 'new_price'
-                                ? `$${rule.discountValue}`
-                                : `-${rule.discountValue}%`}
-                          </div>
-                        </div>
-                      ))}
-                      <Button 
-                        variant="primary"
-                        icon={PlusIcon}
-                        fullWidth
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate('/custom-pricing')
-                        }}
-                      >
-                        Create Pricing Rule
-                      </Button>
-                    </BlockStack>
-                  )}
-                </div>
-              </div>
-
               {/* Affiliate Form Card */}
               <div style={{
                 background: 'white',
@@ -662,9 +332,8 @@ const WelcomePage = ({ shop }) => {
                   )}
                 </div>
               </div>
-            </div>
-                          {/* Referral Area Card */}
-                          <div style={{
+                                           {/* Referral Area Card */}
+                                           <div style={{
                 background: 'white',
                 borderRadius: '16px',
                 border: '1px solid #e5e7eb',
@@ -792,6 +461,7 @@ const WelcomePage = ({ shop }) => {
                   )}
                 </div>
               </div>
+            </div>
           </Layout.Section>
 
           {/* Help Section */}

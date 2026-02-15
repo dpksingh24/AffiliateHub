@@ -1,5 +1,3 @@
-{% assign pricing_rules_metafield = shop.metafields.kiscience.pricing_rules %}
-
 <script id="kiscience-config" type="application/json">
 {
   "shop": "{{ shop.permanent_domain }}",
@@ -13,26 +11,9 @@
 
 <script src="{{ 'shared-cart-landing.js' | asset_url }}" defer></script>
 
-{% if pricing_rules_metafield != blank %}
-<script id="kiscience-rules" type="application/json">
-{{ pricing_rules_metafield }}
-</script>
-{% endif %}
-
-<link rel="stylesheet" href="{{ 'custom-pricing.css' | asset_url }}">
-<script src="{{ 'custom-pricing.js' | asset_url }}" defer></script>
-
 {% schema %} {
-  "name": "Kiscience Custom Pricing",
+  "name": "Kiscience App Embed",
   "target": "head",
-  "settings": [
-    {
-      "type": "checkbox",
-      "id": "enabled",
-      "label": "Enable Custom Pricing",
-      "default": true,
-      "info": "Automatically applies custom pricing to product pages based on your pricing rules"
-    }
-  ]
+  "settings": []
 }
 {% endschema %}
