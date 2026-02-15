@@ -1,8 +1,28 @@
 {% comment %}
   Affiliate Area – dedicated page at /pages/affiliate-area
-  Add this section to your affiliate-area page. Uses affiliate-area.js for tab switching.
+  Single place for default app URL: change tunnel or production URL here only.
 {% endcomment %}
-
+{% assign app_api_default = 'https://law-floating-messenger-freight.trycloudflare.com' %}
+{% assign _api_base = section.settings.api_base_url | default: shop.metafields.kiscience.app_proxy_url | default: '' %}
+{% assign _store_origin = shop.domain | prepend: 'https://' %}
+{% if _api_base == blank or _api_base == 'https://rooms-autos-aware-anyone.trycloudflare.com' or _api_base == _store_origin or _api_base contains shop.domain %}
+  {% assign _api_base = app_api_default %}
+{% endif %}
+<script>
+  (function() {
+    var apiBase = {{ _api_base | json }};
+    if (apiBase && typeof apiBase === 'string') {
+      window.KISCENCE_AFFILIATE_AREA_API_BASE = apiBase.replace(/\/+$/, '');
+    }
+    window.KISCENCE_AFFILIATE_AREA_API_FALLBACK = {{ app_api_default | json }};
+    {% if customer %}
+    window.KISCENCE_CUSTOMER = window.KISCENCE_CUSTOMER || {};
+    window.KISCENCE_CUSTOMER.id = {{ customer.id | json }};
+    window.KISCENCE_CUSTOMER.email = {{ customer.email | json }};
+    window.KISCENCE_CUSTOMER.name = {{ customer.first_name | append: ' ' | append: customer.last_name | strip | default: customer.email | json }};
+    {% endif %}
+  })();
+</script>
 <div class="ks-affiliate-area ks-dashboard" id="affiliate-area-container">
   <!-- Mobile header with hamburger (visible on small screens only) -->
   <header class="ks-affiliate-area__mobile-header">
@@ -42,10 +62,10 @@
 
   <!-- Right content: welcome + tab panels -->
   <div class="ks-dashboard-main">
-    <div class="ks-affiliate-area__welcome">
-      <p class="ks-affiliate-area__greeting">Dear Affiliate,</p>
+    {% comment %} <div class="ks-affiliate-area__welcome">
+      <p class="ks-affiliate-area__greeting">Dear <span id="affiliate-greeting-name">Affiliate</span>,</p>
       <div id="affiliate-area-greeting-message"></div>
-    </div>
+    </div> {% endcomment %}
 
   <section class="ks-tab-content active" id="affiliate-urls" role="tabpanel">
     <h3 class="ks-section-title">Dashboard</h3>
@@ -187,6 +207,14 @@
   "target": "section",
   "javascript": "affiliate-area.js",
   "stylesheet": "customer-dashboard.css",
-  "settings": []
+  "settings": [
+    {
+      "type": "text",
+      "id": "api_base_url",
+      "label": "App API URL",
+      "info": "Your app's URL (e.g. https://your-app.trycloudflare.com or production URL). Change this to where your app is hosted so dashboard data and referral links load.",
+      "default": "https://kisciapp.ebizonstg.com"
+    }
+  ]
 }
 {% endschema %}

@@ -1,6 +1,7 @@
 /**
  * Customer Routes
- * Storefront API for Account Details: profile, update customer, addresses (CRUD + set default)
+ * Storefront API for Account Details: profile, update customer, addresses (CRUD + set default).
+ * Also includes admin helpers: GET /search, POST /create (used by affiliate approval).
  */
 
 module.exports = (db) => {
@@ -24,6 +25,10 @@ module.exports = (db) => {
     getCustomerPaymentMethods,
     deleteCustomerPaymentMethod
   } = require('../controllers/customerController');
+  const { searchCustomerByEmail, createCustomer } = require('../controllers/adminCustomerController');
+
+  router.get('/search', (req, res) => searchCustomerByEmail(req, res, db));
+  router.post('/create', (req, res) => createCustomer(req, res, db));
 
   router.get('/profile', (req, res) => getCustomerProfile(req, res, db));
   router.post('/update', (req, res) => updateCustomer(req, res, db));

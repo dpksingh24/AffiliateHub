@@ -32,7 +32,7 @@ const EmailService = require('../services/email.services');
  */
 const createAffiliateProfile_Controller = async (req, res, db) => {
   try {
-    const { customerId, email, name, shop } = req.body;
+    const { customerId, email, name, firstName, lastName, shop } = req.body;
 
     if (!customerId || !shop) {
       return res.status(400).json({
@@ -50,12 +50,14 @@ const createAffiliateProfile_Controller = async (req, res, db) => {
       });
     }
 
-    // Create affiliate profile
+    // Create affiliate profile (firstName/lastName from affiliate form submission)
     const affiliate = await createAffiliateProfile(db, {
       customerId,
       shop,
-      email,
-      name
+      email: email || undefined,
+      name: name || undefined,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined
     });
 
     // ✅ AUTO-CREATE default referral link
@@ -138,7 +140,7 @@ const getAffiliateProfile = async (req, res, db) => {
       });
     }
 
-    const appUrl = (process.env.HOST || 'https://kisciapp.ebizonstg.com').replace(/\/+$/, '');
+    const appUrl = (process.env.HOST || 'https://rooms-autos-aware-anyone.trycloudflare.com').replace(/\/+$/, '');
     res.json({
       success: true,
       affiliate: {
@@ -227,6 +229,8 @@ const getAffiliateDashboard = async (req, res, db) => {
         profile: {
           id: affiliate._id.toString(),
           name: affiliate.name,
+          firstName: affiliate.firstName || null,
+          lastName: affiliate.lastName || null,
           email: affiliate.email,
           paymentEmail: affiliate.paymentEmail || null,
           enableNewReferralNotifications: !!affiliate.settings?.enableNewReferralNotifications,
@@ -910,7 +914,7 @@ const createCartShareController = async (req, res, db) => {
 
     const primaryLink = affiliate.referralLinks[0];
     const shortCode = primaryLink.shortCode;
-    const baseUrl = process.env.HOST || 'https://kisciapp.ebizonstg.com';
+    const baseUrl = process.env.HOST || 'https://rooms-autos-aware-anyone.trycloudflare.com';
     
     // Build share URL with cart ID
     const shareUrl = `${baseUrl}/ref=${shortCode}?cart_id=${cartShare._id.toString()}`;

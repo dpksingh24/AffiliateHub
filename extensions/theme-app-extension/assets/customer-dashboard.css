@@ -82,7 +82,6 @@
       margin-bottom: 16px;
     }
     .ks-sidebar__name {
-      display: none;
       font-size: 16px;
       font-weight: 700;
       color: #0f172a;
@@ -3430,124 +3429,183 @@
     max-width: 200px;
   }
 
-  /* Colorful Referral URL Card inside Affiliate Area (like Practitioner shortcuts) */
+  /* Primary Referral Link Card – redesigned */
+  .ks-affiliate-area .ks-ref-card,
   .ks-affiliate-area .referral-url-card {
-    background: linear-gradient(to bottom right, #5BA8B8, #5B6FA8);
-    border: none;
+    background: #fff;
+    border: 1px solid #e2e8f0;
     border-radius: 16px;
-    padding: 28px 32px;
+    padding: 24px 28px;
     margin: 24px 0;
-    box-shadow: 0 8px 24px rgba(91, 168, 184, 0.3);
-    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    text-align: left;
   }
 
+  .ks-affiliate-area .ks-ref-card__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+
+  .ks-affiliate-area .ks-ref-card__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #5BA8B8 0%, #5B6FA8 100%);
+    color: #fff;
+  }
+
+  .ks-affiliate-area .ks-ref-card__icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .ks-affiliate-area .ks-ref-card__title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .ks-affiliate-area .ks-ref-card__title,
   .ks-affiliate-area .referral-url-card h4,
   .ks-affiliate-area .ks-primary-referral-card__title {
-    color: #fff;
+    color: #0f172a;
     font-size: 18px;
     font-weight: 700;
-    text-transform: none;
     margin: 0;
     letter-spacing: -0.02em;
   }
 
-  .ks-affiliate-area .referral-url-card p,
-  .ks-affiliate-area .ks-primary-referral-card__desc {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 16px;
-    margin: 0 0 20px 0;
-    line-height: 1.5;
-    max-width: 520px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .ks-primary-referral-card__header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
-  }
-
+  .ks-affiliate-area .ks-ref-card__badge,
   .ks-primary-referral-card__badge {
     display: inline-block;
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 4px 12px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: #d4edda;
-    color: #155724;
+    letter-spacing: 0.05em;
+    background: #dcfce7;
+    color: #166534;
     border-radius: 20px;
   }
 
-  .ks-primary-referral-card__url-wrap {
-    margin-bottom: 20px;
+  .ks-affiliate-area .ks-ref-card__desc,
+  .ks-affiliate-area .referral-url-card p,
+  .ks-affiliate-area .ks-primary-referral-card__desc {
+    color: #64748b;
+    font-size: 15px;
+    margin: 0 0 18px 0;
+    line-height: 1.55;
   }
 
+  .ks-affiliate-area .ks-ref-card__url-row,
+  .ks-primary-referral-card__url-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8fafc;
+  }
+
+  .ks-affiliate-area .ks-ref-card__url,
   .ks-affiliate-area .referral-url-display,
   .ks-affiliate-area .ks-primary-referral-card__url {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    color: #5B6FA8;
-    font-weight: 500;
-    font-size: 14px;
+    flex: 1;
+    min-width: 0;
     padding: 14px 18px;
-    border-radius: 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    color: #334155;
     word-break: break-all;
     user-select: all;
     -webkit-user-select: all;
-    font-family: ui-monospace, monospace;
+    background: #f8fafc;
+    border: none;
   }
 
+  .ks-affiliate-area .ks-ref-card__copy-inline {
+    flex-shrink: 0;
+    padding: 0 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #5B6FA8;
+    background: #e0f2fe;
+    border: none;
+    border-left: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .ks-affiliate-area .ks-ref-card__copy-inline:hover {
+    background: #bae6fd;
+    color: #1e40af;
+  }
+
+  .ks-affiliate-area .ks-ref-card__actions,
   .ks-primary-referral-card__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
-    justify-content: center;
-    margin-bottom: 20px;
+    gap: 10px;
+    margin-bottom: 18px;
   }
 
+  .ks-affiliate-area .ks-ref-card__btn,
   .ks-affiliate-area .referral-url-actions button,
   .ks-affiliate-area .ks-primary-referral-card__btn {
-    background: #fff;
-    color: #5B6FA8;
+    padding: 10px 20px;
+    font-size: 14px;
     font-weight: 600;
-    border: none;
     border-radius: 10px;
-    padding: 12px 24px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .ks-affiliate-area .referral-url-actions button:hover,
-  .ks-affiliate-area .ks-primary-referral-card__btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  }
-
-  .ks-primary-referral-card__btn--share {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-  }
-
-  .ks-primary-referral-card__btn--share:hover {
+    border: 1px solid #e2e8f0;
     background: #fff;
-    color: #5B6FA8;
+    color: #1e293b;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   }
 
+  .ks-affiliate-area .ks-ref-card__btn:hover,
+  .ks-affiliate-area .ks-primary-referral-card__btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .ks-affiliate-area .ks-ref-card__btn--share,
+  .ks-primary-referral-card__btn--share {
+    background: linear-gradient(135deg, #5BA8B8 0%, #5B6FA8 100%);
+    color: #fff;
+    border-color: transparent;
+  }
+
+  .ks-affiliate-area .ks-ref-card__btn--share:hover,
+  .ks-primary-referral-card__btn--share:hover {
+    opacity: 0.95;
+    box-shadow: 0 4px 14px rgba(91, 107, 168, 0.35);
+  }
+
+  .ks-affiliate-area .ks-ref-card__share,
   .ks-primary-referral-card__fast-share {
-    padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 18px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
   }
 
+  .ks-affiliate-area .ks-ref-card__share-label,
   .ks-affiliate-area .ks-primary-referral-card__fast-share .fast-share-label {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
-    margin-right: 10px;
+    color: #64748b;
   }
 
   /* Fast share icons (global) */
@@ -3569,7 +3627,7 @@
   }
 
   .ks-affiliate-area .fast-share-label {
-    color: rgba(255, 255, 255, 0.95);
+    color: #64748b;
   }
 
   .fast-share-icons {
@@ -3594,8 +3652,11 @@
   }
 
   .ks-affiliate-area .fast-share-icons a {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.4);
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #f1f5f9;
+    border-color: #e2e8f0;
   }
 
   .fast-share-icons a:hover {
@@ -3604,8 +3665,9 @@
   }
 
   .ks-affiliate-area .fast-share-icons a:hover {
-    background: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: #e2e8f0;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
 
   .fast-share-icons svg {
@@ -4558,7 +4620,7 @@
   .ks-visits-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
 
   .ks-visits-th {
@@ -4566,6 +4628,7 @@
     padding: 0.6rem 0.75rem;
     background: var(--bg-muted, #f9fafb);
     font-weight: 600;
+    font-size: 1rem;
     color: var(--text-muted, #374151);
     border-bottom: 1px solid var(--border-color, #e5e7eb);
   }
@@ -4574,11 +4637,12 @@
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border-color, #e5e7eb);
     vertical-align: middle;
+    font-size: 1rem;
   }
 
   .ks-visits-td--id {
     font-family: monospace;
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
 
   .ks-visits-td--referrer {
@@ -4605,6 +4669,7 @@
   .ks-visits-empty {
     text-align: center;
     padding: 1.5rem !important;
+    font-size: 1rem;
     color: var(--text-muted, #6b7280);
   }
 
@@ -4624,7 +4689,7 @@
 
   .ks-visits-pagination-btn {
     padding: 0.35rem 0.6rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
     border: 1px solid var(--border-color, #e5e7eb);
     background: #fff;
     border-radius: 4px;
@@ -4642,7 +4707,7 @@
 
   .ks-visits-pagination-info {
     margin: 0 0.5rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
     color: var(--text-muted, #6b7280);
   }
 
@@ -4657,7 +4722,7 @@
   .ks-referrals-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
 
   .ks-referrals-th {
@@ -4665,6 +4730,7 @@
     padding: 0.6rem 0.75rem;
     background: var(--bg-muted, #f9fafb);
     font-weight: 600;
+    font-size: 1rem;
     color: var(--text-muted, #374151);
     border-bottom: 1px solid var(--border-color, #e5e7eb);
   }
@@ -4673,11 +4739,12 @@
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border-color, #e5e7eb);
     vertical-align: middle;
+    font-size: 1rem;
   }
 
   .ks-referrals-td--ref {
     font-family: monospace;
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
 
   .ks-referrals-td--desc {
@@ -4696,12 +4763,13 @@
 
   .ks-referrals-td--id {
     font-family: monospace;
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
 
   .ks-referrals-empty {
     text-align: center;
     padding: 1.5rem !important;
+    font-size: 1rem;
     color: var(--text-muted, #6b7280);
   }
 
@@ -4749,17 +4817,30 @@
     box-shadow: 0 4px 12px rgba(91, 168, 184, 0.08);
   }
 
+  .ks-affiliate-area .ks-share-cart-builder .ks-subtitle {
+    font-size: 1.25rem;
+  }
+
   .ks-share-cart-builder__intro {
-    font-size: 0.875rem;
+    font-size: 1rem;
     color: var(--text-secondary, #4b5563);
     margin: 0 0 1rem;
   }
 
+  .ks-affiliate-area .ks-share-cart-builder__intro {
+    font-size: 1.125rem;
+    line-height: 1.5;
+  }
+
   .ks-share-cart-builder__intro code {
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
     padding: 0.15em 0.4em;
     background: var(--bg-muted, #f3f4f6);
     border-radius: 4px;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__intro code {
+    font-size: 1.0625rem;
   }
 
   .ks-share-cart-builder__search {
@@ -4769,10 +4850,14 @@
 
   .ks-share-cart-builder__search-label {
     display: block;
-    font-size: 0.875rem;
+    font-size: 1.0625rem;
     font-weight: 600;
     color: var(--text-primary, #111);
     margin-bottom: 0.375rem;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__search-label {
+    font-size: 1.1875rem;
   }
 
   .ks-share-cart-builder__search-inner {
@@ -4786,11 +4871,16 @@
   .ks-share-cart-builder__input {
     width: 100%;
     padding: 0.5rem 2.25rem 0.5rem 0.75rem;
-    font-size: 1rem;
+    font-size: 1.0625rem;
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: var(--radius-sm, 4px);
     box-sizing: border-box;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__input {
+    font-size: 1.125rem;
+    padding: 0.625rem 2.5rem 0.625rem 0.875rem;
   }
 
   .ks-share-cart-builder__input:focus {
@@ -4834,6 +4924,10 @@
     font-size: 0.8125rem;
     color: var(--text-muted, #6b7280);
     pointer-events: none;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__search-loading {
+    font-size: 1rem;
   }
 
 
@@ -4898,10 +4992,14 @@
   .ks-share-cart-builder__result-title {
     flex: 1;
     min-width: 0;
-    font-size: 0.875rem;
+    font-size: 1rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__result-title {
+    font-size: 1.0625rem;
   }
 
   .ks-share-cart-builder__add-btn {
@@ -4911,15 +5009,23 @@
   .ks-share-cart-builder__results-empty {
     margin: 0;
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
     color: var(--text-muted, #6b7280);
   }
 
+  .ks-affiliate-area .ks-share-cart-builder__results-empty {
+    font-size: 1.0625rem;
+  }
+
   .ks-share-cart-builder__selected-title {
-    font-size: 0.9375rem;
+    font-size: 1.125rem;
     font-weight: 600;
     margin: 0 0 0.5rem;
     color: var(--text-primary, #111827);
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__selected-title {
+    font-size: 1.25rem;
   }
 
   .ks-share-cart-builder__list {
@@ -4934,8 +5040,13 @@
 
   .ks-share-cart-builder__list-empty {
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
     color: var(--text-muted, #6b7280);
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__list-empty {
+    font-size: 1.125rem;
+    color: #475569;
   }
 
   .ks-share-cart-builder__list-item {
@@ -4945,7 +5056,12 @@
     gap: 0.25rem 0.5rem;
     padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--border-color, #e5e7eb);
-    font-size: 0.875rem;
+    font-size: 1rem;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__list-item {
+    font-size: 1.0625rem;
+    padding: 0.5rem 0.875rem;
   }
 
   .ks-share-cart-builder__list-item:last-child {
@@ -4991,19 +5107,27 @@
   .ks-share-cart-builder__list-qty {
     min-width: 1.25rem;
     text-align: center;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--text-primary, #111);
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__list-qty {
+    font-size: 1.0625rem;
   }
 
   .ks-share-cart-builder__remove-btn {
     background: none;
     border: none;
     padding: 0;
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
     color: var(--primary-color, #5f8fa8);
     cursor: pointer;
     text-decoration: underline;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__remove-btn {
+    font-size: 1rem;
   }
 
   .ks-share-cart-builder__remove-btn:hover {
@@ -5022,10 +5146,14 @@
 
   .ks-share-cart-builder__output-label {
     display: block;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 500;
     margin-bottom: 0.35rem;
     color: var(--text-secondary, #4b5563);
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__output-label {
+    font-size: 1.125rem;
   }
 
   .ks-share-cart-builder__output-row {
@@ -5039,11 +5167,16 @@
     flex: 1;
     min-width: 200px;
     padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: var(--radius-sm, 4px);
     background: var(--bg-muted, #f9fafb);
     box-sizing: border-box;
+  }
+
+  .ks-affiliate-area .ks-share-cart-builder__output-input {
+    font-size: 1.0625rem;
+    padding: 0.625rem 0.875rem;
   }
 
   .ks-share-discount-modal {

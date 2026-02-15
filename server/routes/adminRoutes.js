@@ -17,6 +17,7 @@ module.exports = (db) => {
     getAffiliateCommissionRate,
     putAffiliateCommissionRate,
     getPayouts,
+    createPayout,
     getReferrals,
     getReferralsByAffiliate,
     getReferralById,
@@ -100,6 +101,14 @@ module.exports = (db) => {
    */
   router.get('/payouts', (req, res) => {
     getPayouts(req, res, db);
+  });
+
+  /**
+   * POST /api/admin/payouts
+   * Record a payout (body: shop, affiliateId, amount, currency?, method?, referralIds?).
+   */
+  router.post('/payouts', (req, res) => {
+    createPayout(req, res, db);
   });
 
   /**

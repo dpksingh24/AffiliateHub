@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "start:tls": "NODE_OPTIONS='--tls-min-v1.2' node index.js",
     "dev": "nodemon index.js"
   },
   "dependencies": {

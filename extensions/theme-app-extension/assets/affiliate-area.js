@@ -4,7 +4,27 @@
  * Affiliate Area: referral links, earnings, referrals, payouts, visits, settings.
  */
 (function () {
-  const API_BASE_URL = 'https://kisciapp.ebizonstg.com';
+  var BROKEN_API_HOST = 'rooms-autos-aware-anyone.trycloudflare.com';
+  function getApiBaseUrl() {
+    var base = '';
+    if (typeof window.KISCENCE_AFFILIATE_AREA_API_BASE === 'string' && window.KISCENCE_AFFILIATE_AREA_API_BASE) {
+      base = window.KISCENCE_AFFILIATE_AREA_API_BASE.replace(/\/+$/, '');
+    }
+    if (!base) {
+      try {
+        var el = document.getElementById('kiscience-config');
+        if (el && el.textContent) {
+          var c = JSON.parse(el.textContent);
+          if (c && c.appApiBaseUrl) base = c.appApiBaseUrl.replace(/\/+$/, '');
+        }
+      } catch (e) {}
+    }
+    if (base && base.indexOf(BROKEN_API_HOST) !== -1) base = '';
+    if (base && base === window.location.origin) base = '';
+    var fallback = (typeof window.KISCENCE_AFFILIATE_AREA_API_FALLBACK === 'string' && window.KISCENCE_AFFILIATE_AREA_API_FALLBACK) ? window.KISCENCE_AFFILIATE_AREA_API_FALLBACK.replace(/\/+$/, '') : '';
+    return base || fallback || window.location.origin || '';
+  }
+  const API_BASE_URL = getApiBaseUrl();
   const CONTAINER_ID = 'affiliate-area-container';
   const TAB_SELECTOR = '.ks-tab:not(.ks-affiliate-area__tab--logout)';
   const PANEL_SELECTOR = '.ks-tab-content';
@@ -156,26 +176,29 @@
 
     window._ksPrimaryReferralUrl = linkUrl;
 
-    el.innerHTML = '<div class="referral-url-card ks-primary-referral-card">' +
-      '<div class="ks-primary-referral-card__header">' +
-      '<h4 class="ks-primary-referral-card__title">Your Primary Referral Link</h4>' +
-      '<span class="ks-primary-referral-card__badge">Active</span>' +
+    el.innerHTML = '<div class="ks-ref-card referral-url-card ks-primary-referral-card">' +
+      '<div class="ks-ref-card__head">' +
+      '<span class="ks-ref-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>' +
+      '<div class="ks-ref-card__title-wrap">' +
+      '<h4 class="ks-ref-card__title ks-primary-referral-card__title">Your Primary Referral Link</h4>' +
+      '<span class="ks-ref-card__badge ks-primary-referral-card__badge">Active</span>' +
+      '</div></div>' +
+      '<p class="ks-ref-card__desc ks-primary-referral-card__desc">Use this single link for everything: general sharing and Share Cart. Tracking works for both.</p>' +
+      '<div class="ks-ref-card__url-row ks-primary-referral-card__url-wrap">' +
+      '<div class="ks-ref-card__url referral-url-display ks-primary-referral-card__url" id="primary-link-url">' + escapeAttr(linkUrl) + '</div>' +
+      '<button type="button" class="ks-ref-card__copy-inline" onclick="copyPrimaryReferralLink()" aria-label="Copy link">Copy</button>' +
       '</div>' +
-      '<p class="ks-primary-referral-card__desc">Use this single link for everything: general sharing and Share Cart. Tracking works for both.</p>' +
-      '<div class="ks-primary-referral-card__url-wrap">' +
-      '<div class="referral-url-display ks-primary-referral-card__url" id="primary-link-url">' + escapeAttr(linkUrl) + '</div>' +
+      '<div class="ks-ref-card__actions ks-primary-referral-card__actions">' +
+      '<button class="ks-btn ks-ref-card__btn ks-primary-referral-card__btn" type="button" onclick="copyPrimaryReferralLink()">Copy Link</button>' +
+      '<button class="ks-btn ks-ref-card__btn ks-ref-card__btn--share ks-primary-referral-card__btn ks-primary-referral-card__btn--share" type="button" onclick="shareReferralLink()">Share</button>' +
       '</div>' +
-      '<div class="ks-primary-referral-card__actions">' +
-      '<button class="ks-btn ks-primary-referral-card__btn" type="button" onclick="copyPrimaryReferralLink()">Copy Link</button>' +
-      '<button class="ks-btn ks-primary-referral-card__btn ks-primary-referral-card__btn--share" type="button" onclick="shareReferralLink()">Share</button>' +
-      '</div>' +
-      '<div class="fast-share ks-primary-referral-card__fast-share" aria-hidden="false">' +
-      '<span class="fast-share-label">Share to</span>' +
+      '<div class="ks-ref-card__share fast-share ks-primary-referral-card__fast-share" aria-hidden="false">' +
+      '<span class="ks-ref-card__share-label fast-share-label">Share to</span>' +
       '<div class="fast-share-icons">' +
-      '<a href="#" class="facebook" onclick="shareToFacebook();return false;" title="Share on Facebook"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.99 3.66 9.12 8.44 9.88V14.89h-2.54v-2.9h2.54V9.97c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.23.2 2.23.2v2.45h-1.25c-1.23 0-1.61.77-1.61 1.56v1.87h2.74l-.44 2.9h-2.3v6.99C18.34 21.12 22 16.99 22 12z"/></svg></a>' +
-      '<a href="#" class="linkedin" onclick="shareToLinkedIn();return false;" title="Share on LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 0h-14C2.9 0 2 0.9 2 2v20c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V2c0-1.1-.9-2-2-2zM8 18H5V9h3v9zM6.5 7.5C5.67 7.5 5 6.83 5 6s.67-1.5 1.5-1.5S8 5.17 8 6s-.33 1.5-1.5 1.5zM19 18h-3v-4.5c0-1.07-.93-1.5-1.5-1.5S13 12.43 13 13.5V18h-3V9h3v1.25c.78-1.2 2.22-1.25 3.03-.3.98 1.12.97 3.05.97 4.05V18z"/></svg></a>' +
-      '<a href="#" class="whatsapp" onclick="shareToWhatsApp();return false;" title="Share on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M20.52 3.48A11.93 11.93 0 0012 0C5.373 0 .05 5.324.05 11.95c0 2.108.55 4.178 1.6 6.02L0 24l6.23-1.63a11.93 11.93 0 005.77 1.48c6.628 0 11.95-5.324 11.95-11.95 0-3.19-1.24-6.19-3.43-8.37zM12 21.7c-1.78 0-3.5-.47-4.99-1.36l-.36-.22L4 20l1.2-2.43-.24-.38A8.7 8.7 0 013.1 12c0-4.92 4.01-8.93 8.9-8.93 2.38 0 4.62.93 6.3 2.61A8.85 8.85 0 0120.9 12c0 4.9-4 8.9-8.9 8.9z"/></svg></a>' +
-      '<a href="#" class="mail" onclick="shareByMail();return false;" title="Share via Email"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg></a>' +
+      '<a href="#" class="facebook" onclick="shareToFacebook();return false;" title="Share on Facebook"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.99 3.66 9.12 8.44 9.88V14.89h-2.54v-2.9h2.54V9.97c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.23.2 2.23.2v2.45h-1.25c-1.23 0-1.61.77-1.61 1.56v1.87h2.74l-.44 2.9h-2.3v6.99C18.34 21.12 22 16.99 22 12z"/></svg></a>' +
+      '<a href="#" class="linkedin" onclick="shareToLinkedIn();return false;" title="Share on LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 0h-14C2.9 0 2 0.9 2 2v20c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V2c0-1.1-.9-2-2-2zM8 18H5V9h3v9zM6.5 7.5C5.67 7.5 5 6.83 5 6s.67-1.5 1.5-1.5S8 5.17 8 6s-.33 1.5-1.5 1.5zM19 18h-3v-4.5c0-1.07-.93-1.5-1.5-1.5S13 12.43 13 13.5V18h-3V9h3v1.25c.78-1.2 2.22-1.25 3.03-.3.98 1.12.97 3.05.97 4.05V18z"/></svg></a>' +
+      '<a href="#" class="whatsapp" onclick="shareToWhatsApp();return false;" title="Share on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.52 3.48A11.93 11.93 0 0012 0C5.373 0 .05 5.324.05 11.95c0 2.108.55 4.178 1.6 6.02L0 24l6.23-1.63a11.93 11.93 0 005.77 1.48c6.628 0 11.95-5.324 11.95-11.95 0-3.19-1.24-6.19-3.43-8.37zM12 21.7c-1.78 0-3.5-.47-4.99-1.36l-.36-.22L4 20l1.2-2.43-.24-.38A8.7 8.7 0 013.1 12c0-4.92 4.01-8.93 8.9-8.93 2.38 0 4.62.93 6.3 2.61A8.85 8.85 0 0120.9 12c0 4.9-4 8.9-8.9 8.9z"/></svg></a>' +
+      '<a href="#" class="mail" onclick="shareByMail();return false;" title="Share via Email"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg></a>' +
       '</div></div></div>';
     if (placeholder) placeholder.style.display = 'none';
     var builderWrap = document.getElementById('affiliate-area-share-cart-builder');
@@ -538,6 +561,11 @@
     if (!name && window.KISCENCE_CUSTOMER && window.KISCENCE_CUSTOMER.name) name = window.KISCENCE_CUSTOMER.name;
     if (!name && email) name = email.replace(/@.*/, '').replace(/[._]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
     if (nameEl) nameEl.textContent = name || 'Affiliate';
+    var greetingEl = document.getElementById('affiliate-greeting-name');
+    if (greetingEl) {
+      var greetingName = (affiliateData && affiliateData.profile && affiliateData.profile.firstName) ? affiliateData.profile.firstName : (name || 'Affiliate');
+      greetingEl.textContent = greetingName;
+    }
   }
 
   function getAffiliateTabIcon(type) {

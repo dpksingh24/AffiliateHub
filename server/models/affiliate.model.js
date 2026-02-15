@@ -164,7 +164,7 @@ const createReferralLink = async (db, affiliateId, linkData, options = {}) => {
   const { ObjectId } = require('mongodb');
   
   const shortCode = generateShortCode();
-  const backendUrl = process.env.HOST || 'https://kisciapp.ebizonstg.com';
+  const backendUrl = process.env.HOST || 'https://rooms-autos-aware-anyone.trycloudflare.com';
   const referralUrl = `${backendUrl.replace(/\/+$/, '')}/ref=${shortCode}`;
 
   const newLink = {

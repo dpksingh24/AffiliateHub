@@ -333,6 +333,80 @@ const getPayouts = async (req, res, db) => {
 };
 
 /**
+ * Record a payout (admin paid an affiliate outside the app; record it and optionally mark referrals as paid).
+ * POST /api/admin/payouts
+ * Body: { shop, affiliateId, amount, currency?, method?, referralIds? }
+ * - referralIds: optional array of referral (conversion) IDs to mark as paid; must belong to this affiliate.
+ */
+const createPayout = async (req, res, db) => {
+  try {
+    const { shop, affiliateId, amount, currency, method, referralIds } = req.body || {};
+    if (!shop || !affiliateId) {
+      return res.status(400).json({ success: false, error: 'shop and affiliateId are required' });
+    }
+    if (!ObjectId.isValid(affiliateId)) {
+      return res.status(400).json({ success: false, error: 'Invalid affiliateId' });
+    }
+    const numAmount = parseFloat(amount);
+    if (Number.isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'amount must be a positive number' });
+    }
+
+    const aff = await db.collection('affiliates').findOne({ _id: new ObjectId(affiliateId), shop });
+    if (!aff) {
+      return res.status(404).json({ success: false, error: 'Affiliate not found for this shop' });
+    }
+
+    const now = new Date();
+    const payoutDoc = {
+      shop,
+      affiliateId,
+      amount: numAmount,
+      currency: (currency && String(currency).trim()) || 'USD',
+      method: (method && String(method).trim()) || 'PayPal',
+      referralIds: Array.isArray(referralIds) ? referralIds.filter((id) => id && ObjectId.isValid(id)) : [],
+      status: 'paid',
+      createdAt: now,
+      paidAt: now
+    };
+
+    const result = await db.collection('payouts').insertOne(payoutDoc);
+    const payoutId = result.insertedId.toString();
+
+    if (payoutDoc.referralIds.length > 0) {
+      for (const id of payoutDoc.referralIds) {
+        const conversion = await db.collection('referral_conversions').findOne({ _id: new ObjectId(id) });
+        if (!conversion) continue;
+        const affInfo = await getConversionAffiliateForShop(db, conversion, shop);
+        if (affInfo && affInfo.affiliateId.toString() === affiliateId) {
+          await updateOneReferralStatus(db, id, shop, 'paid');
+        }
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      payoutId,
+      payout: {
+        id: payoutId,
+        payoutId,
+        amount: payoutDoc.amount,
+        currency: payoutDoc.currency,
+        affiliateId,
+        method: payoutDoc.method,
+        referralIds: payoutDoc.referralIds,
+        status: payoutDoc.status,
+        createdAt: payoutDoc.createdAt,
+        paidAt: payoutDoc.paidAt
+      }
+    });
+  } catch (err) {
+    console.error('createPayout error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
  * Get referrals list for admin (all referral conversions for the shop)
  * GET /api/admin/referrals?shop=...&page=1&limit=20&status=...&from=YYYY-MM-DD&to=YYYY-MM-DD
  */
@@ -1182,8 +1256,9 @@ module.exports = {
   putAffiliateAreaGreeting,
   getAffiliateCommissionRate,
   putAffiliateCommissionRate,
-  getPayouts,
-  getReferrals,
+getPayouts,
+    createPayout,
+    getReferrals,
   getReferralsByAffiliate,
   getReferralById,
   updateReferralStatus,

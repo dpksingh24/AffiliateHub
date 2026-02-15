@@ -4,6 +4,32 @@ const EmailService = require('../services/email.services');
 const { getEmailTemplate } = require('../services/emailTemplates');
 const { createAffiliateProfile, createReferralLink, getAffiliateByCustomerId } = require('../models/affiliate.model');
 
+const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || '2024-01';
+async function getShopAccessForApproval(shop, db) {
+  const shopData = await db.collection('shops').findOne({ shop });
+  return (shopData && shopData.accessToken) ? shopData.accessToken : null;
+}
+/** Look up Shopify customer ID by email so we can create affiliate even when approval request didn't include shopifyCustomerId */
+async function resolveCustomerIdByEmail(shop, email, db) {
+  if (!shop || !email || !email.trim()) return null;
+  const accessToken = await getShopAccessForApproval(shop, db);
+  if (!accessToken) return null;
+  try {
+    const url = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/customers/search.json?query=email:${encodeURIComponent(email.trim())}&limit=1`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const customer = (data.customers && data.customers[0]) || null;
+    return customer ? customer.id : null;
+  } catch (e) {
+    console.error('resolveCustomerIdByEmail error:', e);
+    return null;
+  }
+}
+
 // Helper: extract an email from a submission object (direct field or inside data)
 function extractEmailFromSubmission(submission, form) {
     if (!submission) return null;
@@ -1034,7 +1060,10 @@ const approveAffiliateFormSubmission = async (req, res, db) => {
     try {
         const { formId, id } = req.params;
         const { shop } = req.query;
-        const { shopifyCustomerId, tagAdded } = req.body;
+        let shopifyCustomerId = req.body && (req.body.shopifyCustomerId != null) && req.body.shopifyCustomerId !== '' && req.body.shopifyCustomerId !== 'null'
+            ? req.body.shopifyCustomerId
+            : null;
+        const tagAdded = req.body && req.body.tagAdded;
 
         if (!shop) {
             return res.status(400).json({
@@ -1109,7 +1138,18 @@ const approveAffiliateFormSubmission = async (req, res, db) => {
         // Set affiliate profile status to 'active' (or create affiliate if none exists yet)
         const approvedEmail = extractEmailFromSubmission(submission, form);
         const paymentEmail = extractPaymentEmailFromSubmission(submission, form);
-        const approvedCustomerId = shopifyCustomerId || submission.shopifyCustomerId || submission.customerId;
+        let approvedCustomerId = shopifyCustomerId || submission.shopifyCustomerId || submission.customerId;
+        if (!approvedCustomerId && approvedEmail) {
+          const resolvedId = await resolveCustomerIdByEmail(shop, approvedEmail, db);
+          if (resolvedId) {
+            approvedCustomerId = resolvedId;
+            await db.collection('affiliate_form_submissions').updateOne(
+              { _id: new ObjectId(id) },
+              { $set: { shopifyCustomerId: String(approvedCustomerId) } }
+            );
+            console.log('✅ Resolved Shopify customer ID from email for approval:', approvedCustomerId);
+          }
+        }
         const approvedName = extractNameFromSubmission(submission, form) || 'Affiliate';
         const { firstName: approvedFirstName, lastName: approvedLastName } = extractFirstAndLastNameFromSubmission(submission, form);
 

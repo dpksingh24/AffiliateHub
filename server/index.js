@@ -182,7 +182,16 @@ const connectDB = async () => {
       // URL parsing failed, continue anyway
     }
     
-    mongoClient = new MongoClient(dbUrl);
+    const clientOptions = {
+      serverSelectionTimeoutMS: 15000,
+      tls: true
+    };
+    // If Atlas TLS handshake fails (e.g. SSL alert 80), try: MONGODB_TLS_INSECURE=1 npm start (dev only)
+    if (process.env.MONGODB_TLS_INSECURE === '1') {
+      clientOptions.tlsAllowInvalidCertificates = true;
+      console.warn('MONGODB_TLS_INSECURE=1: certificate verification relaxed (use only for debugging)');
+    }
+    mongoClient = new MongoClient(dbUrl, clientOptions);
     await mongoClient.connect();
     db = mongoClient.db(process.env.DB_NAME);
     // Prevent duplicate referral conversions at DB level (unique index on orderId)
@@ -358,6 +367,12 @@ const connectDB = async () => {
     } else if (error.message.includes('timeout')) {
       console.error('\n❌ MongoDB Connection Timeout');
       console.error('Check your network connection and MongoDB Atlas firewall settings');
+    } else if (error.message.includes('SSL') || error.message.includes('ssl3_read_bytes') || error.message.includes('tlsv1 alert')) {
+      console.error('\n❌ MongoDB TLS/SSL Handshake Error');
+      console.error('MongoDB Atlas requires TLS 1.2+. Try one of:');
+      console.error('  1. Use Node.js 18 or 20 LTS: nvm use 18 (or install from nodejs.org)');
+      console.error('  2. Force TLS 1.2: NODE_OPTIONS=\'--tls-min-v1.2\' npm start');
+      console.error('  3. In Atlas: Network Access -> add 0.0.0.0/0 to allow from anywhere (if safe for your setup)');
     }
     
     console.error('\nCurrent DB_URL format (without password):', 

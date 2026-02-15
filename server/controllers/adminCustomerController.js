@@ -56,7 +56,13 @@ async function searchCustomerByEmail(req, res, db) {
 
 async function createCustomer(req, res, db) {
   try {
-    const { shop, email, firstName, lastName, tags } = req.body || {};
+    const body = req.body || {};
+    const query = req.query || {};
+    const shop = body.shop || query.shop;
+    const email = body.email || query.email;
+    const firstName = body.firstName ?? body.first_name ?? query.firstName ?? query.first_name;
+    const lastName = body.lastName ?? body.last_name ?? query.lastName ?? query.last_name;
+    const tags = body.tags ?? query.tags;
     if (!shop || !email) {
       return res.status(400).json({ success: false, error: 'shop and email are required' });
     }

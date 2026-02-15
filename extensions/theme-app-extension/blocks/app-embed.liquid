@@ -1,7 +1,7 @@
 <script id="kiscience-config" type="application/json">
 {
   "shop": "{{ shop.permanent_domain }}",
-  "appApiBaseUrl": "https://kisciapp.ebizonstg.com",
+  "appApiBaseUrl": "https://rooms-autos-aware-anyone.trycloudflare.com",
   "customerId": {% if customer %}"{{ customer.id }}"{% else %}null{% endif %},
   "customerLoggedIn": {% if customer %}true{% else %}false{% endif %},
   "customerTags": {% if customer %}{{ customer.tags | json }}{% else %}[]{% endif %},

@@ -9,6 +9,7 @@
     "client:dev": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
+    "start:tls": "NODE_OPTIONS='--tls-min-v1.2' npm start",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "setup": "npm run install:all && npm run build"
   },
